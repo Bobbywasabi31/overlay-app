@@ -1,0 +1,21 @@
+# Android
+*.apk
+*.aab
+*.keystore
+*.jks
+
+# Build
+/build/
+/app/build/
+
+# Gradle
+.gradle/
+
+# IDE
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# Local configuration
+local.properties
