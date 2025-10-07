@@ -1,0 +1,7 @@
+# Initialize git repo
+git init
+git add .
+git commit -m "Initial commit: Pokemon Throw Assistant"
+
+# Create GitHub repo and push
+gh repo create pokemon-throw-assistant --public --push
