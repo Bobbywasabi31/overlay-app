@@ -29,18 +29,9 @@ class OverlayService : Service() {
         binding = OverlayLayoutBinding.inflate(LayoutInflater.from(this))
         overlayView = binding.root
 
-        val params = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.MATCH_PARENT,
-            WindowManager.LayoutParams.MATCH_PARENT,
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-            } else {
-                WindowManager.LayoutParams.TYPE_PHONE
-            },
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-            WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
-            PixelFormat.TRANSLUCENT
-        )
+       fun runOnUiThread(action: Runnable) {
+    Handler(Looper.getMainLooper()).post(action)
+
 
         windowManager.addView(overlayView, params)
         startAnalysis()
