@@ -19,3 +19,5 @@
 
 # Local configuration
 local.properties
+
+.kotlin/

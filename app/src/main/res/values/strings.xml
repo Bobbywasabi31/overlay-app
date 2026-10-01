@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Throw Assistant</string>
+    <string name="eyebrow">THROW ASSISTANT · EXPERIMENTAL</string>
+    <string name="headline">Keep your eye\non the circle.</string>
+    <string name="subtitle">A simple visual guide, right over your screen.</string>
+    <string name="status_idle">Ready when you are</string>
+    <string name="status_starting">Starting screen capture…</string>
+    <string name="status_running">Overlay is running</string>
+    <string name="status_error">Session stopped</string>
+    <string name="message_idle">Allow the overlay, then start a screen-sharing session.</string>
+    <string name="message_running">Look for the cyan marker on a colored ring. You can still tap and swipe through it.</string>
+    <string name="message_cancelled">Screen sharing was cancelled. Tap Start when you are ready.</string>
+    <string name="message_overlay_required">Display over other apps is required. Enable it in Settings, then tap Start.</string>
+    <string name="message_capture_error">Screen capture could not start. Check overlay permission, then try a new session.</string>
+    <string name="message_frame_error">Screen capture was interrupted. Tap Start to try again.</string>
+    <string name="message_display_changed">The display size or orientation changed. Tap Start for a new session with aligned guidance.</string>
+    <string name="message_full_display">Share the entire screen so the marker can line up. Tap Start and choose the entire screen.</string>
+    <string name="message_stopped">Screen capture has stopped. No frames are being analyzed.</string>
+    <string name="message_system_stopped">Android ended screen sharing. Tap Start to begin a new session.</string>
+    <string name="permission_title">Display over other apps</string>
+    <string name="permission_granted">Allowed</string>
+    <string name="permission_missing">Permission needed</string>
+    <string name="permission_manage">Settings</string>
+    <string name="start">Start overlay</string>
+    <string name="stop">Stop</string>
+    <string name="practice">Open practice screen</string>
+    <string name="privacy">Screen frames are analyzed on this device, never saved or uploaded. Sharing covers your entire screen; stop before opening private content.</string>
+    <string name="how_title">A little guidance</string>
+    <string name="how_body">1. Tap Start and approve Android’s screen-sharing prompt.\n\n2. Open the practice screen or switch to your target app. A cyan marker appears when a colored ring is detected.\n\n3. Stop from this app, the notification, or Android’s sharing controls.</string>
+    <string name="limitations">Detection is experimental. It can miss rings or mark other circular objects. It does not predict throw grades or automate gestures.</string>
+    <string name="notification_channel">Screen analysis</string>
+    <string name="notification_title">Throw Assistant is running</string>
+    <string name="notification_body">Analyzing your screen on this device. Tap to open controls.</string>
+    <string name="overlay_searching">Looking for a ring</string>
+    <string name="overlay_found">Ring detected</string>
+    <string name="demo_title">Practice screen</string>
+    <string name="demo_body">Start the overlay first, then watch the cyan marker follow this ring. Tap the ring to change its color and check that touches pass through.</string>
+    <string name="demo_back">Back to controls</string>
+    <string name="demo_description">Animated practice ring. Tap to change its color.</string>
+    <string name="demo_taps">Touches received: %1$d</string>
+    <string name="settings_unavailable">Android could not open overlay settings. Enable “Display over other apps” in the app’s system settings.</string>
+</resources>

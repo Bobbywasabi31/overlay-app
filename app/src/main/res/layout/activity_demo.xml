@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="match_parent"
+    android:orientation="vertical" android:padding="24dp">
+    <TextView style="@style/SectionTitle" android:text="@string/demo_title" />
+    <TextView style="@style/BodyText" android:layout_marginTop="12dp" android:text="@string/demo_body" />
+    <com.bobbywasabi.overlayapp.PracticeRingView android:id="@+id/practiceRing"
+        android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
+        android:minHeight="100dp" android:contentDescription="@string/demo_description"
+        android:clickable="true" android:focusable="true" />
+    <TextView android:id="@+id/tapCount" style="@style/BodyText" android:gravity="center" />
+    <com.google.android.material.button.MaterialButton android:id="@+id/backButton"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:minHeight="52dp" android:text="@string/demo_back" android:textAllCaps="false" />
+</LinearLayout>
