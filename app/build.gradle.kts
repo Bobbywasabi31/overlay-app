@@ -20,6 +20,9 @@ android {
     kotlinOptions { jvmTarget = "17" }
     lint {
         warningsAsErrors = true
+        // Keep this prototype on API 35 until newer target behavior is device-tested.
+        // The time-dependent SDK upgrade advisory is not a code-correctness gate.
+        disable += "OldTargetApi"
         // Remote dependency-update recommendations are not reproducible build gates.
         disable += setOf("GradleDependency", "AndroidGradlePluginVersion", "NewerVersionAvailable")
     }

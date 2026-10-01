@@ -56,7 +56,7 @@ The original OpenCV imports referenced a module that did not exist. The Kotlin i
 
 ## Validation
 
-Unit tests cover ring colors, negative shapes, cyan self-detection, clipped rings, noise, portrait/landscape normalization, tracking, and RGBA row/pixel padding. Android Lint fails on warnings, except remote dependency-update recommendations.
+Unit tests cover ring colors, negative shapes, cyan self-detection, clipped rings, noise, portrait/landscape normalization, tracking, and RGBA row/pixel padding. Android Lint fails on warnings, except remote dependency-update recommendations and the time-dependent `OldTargetApi` upgrade advisory. This prototype intentionally targets API 35; a newer target requires separate behavior testing before release.
 
 Device smoke checks still required:
 
