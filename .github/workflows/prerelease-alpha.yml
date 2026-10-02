@@ -1,0 +1,65 @@
+name: Publish v0.2.1-alpha.2
+on:
+  push:
+    branches: ['release/v0.2.1-alpha.2']
+    paths: ['.github/workflows/prerelease-alpha.yml']
+permissions:
+  contents: read
+concurrency:
+  group: release-v0.2.1-alpha.2
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+      SOURCE_SHA: af87804b6e426e29870da894c9aa27b09ac1a828
+      SOURCE_RUN: '36945005336'
+      RELEASE_TAG: v0.2.1-alpha.2
+    steps:
+      - name: Verify successful source build and download APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api "repos/$GH_REPO/actions/runs/$SOURCE_RUN" > source-run.json
+          jq -e --arg sha "$SOURCE_SHA" --arg repo "$GH_REPO" \
+            '.conclusion == "success" and .head_sha == $sha and .repository.full_name == $repo and .path == ".github/workflows/android.yml"' source-run.json
+          gh run download "$SOURCE_RUN" --name throw-assistant-debug --dir artifact
+          test -s artifact/app-debug.apk
+          unzip -tq artifact/app-debug.apk
+          mkdir release
+          cp artifact/app-debug.apk release/ThrowAssistant-v0.2.1-alpha.2.apk
+          cd release
+          sha256sum ThrowAssistant-v0.2.1-alpha.2.apk > SHA256SUMS.txt
+      - name: Publish prerelease with APK and checksum
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > release-notes.md <<'NOTES'
+          Small-ring detection fix for the experimental Android overlay.
+
+          Download **ThrowAssistant-v0.2.1-alpha.2.apk** below and install it on Android 7.0 or newer. Android may ask you to allow installation from your browser or file manager.
+
+          Fixes the reported tiny green ring missed in gameplay: preserve more capture detail (960-pixel long edge), accept antialiased ring colors, and detect smaller rings while keeping circularity and two-frame checks. The original detector missed the supplied screenshot; this detector finds its ring. The same scene with the ring removed produces no detection. Broader gameplay accuracy remains unvalidated.
+
+          This is a **debug-signed test APK**, not a production release. Its in-app version is 0.2.1-alpha.2 (version code 3). If an earlier build was signed with a different debug key, Android may require uninstalling that build first.
+
+          Validation: 22 JVM tests, Android Lint, and APK assembly passed. Lint excludes dependency-update notices and the documented OldTargetApi advisory for the prototype's API 35 target. Physical-device testing and gameplay accuracy remain unvalidated.
+
+          Start the overlay, grant overlay permission and full-screen capture consent, then use the Practice screen to check alignment and touch pass-through. Screen frames stay in memory and are not uploaded. Stop sharing before opening private content.
+
+          Source commit: af87804b6e426e29870da894c9aa27b09ac1a828
+          Validated build: https://github.com/Bobbywasabi31/overlay-app/actions/runs/36945005336
+          Source review: https://github.com/Bobbywasabi31/overlay-app/pull/1
+
+          This is a visual ring detector; it does not calculate throws or automate gestures.
+          NOTES
+          gh release create "$RELEASE_TAG" \
+            release/ThrowAssistant-v0.2.1-alpha.2.apk release/SHA256SUMS.txt \
+            --target "$SOURCE_SHA" --prerelease --latest=false \
+            --title "Throw Assistant v0.2.1-alpha.2" --notes-file release-notes.md
