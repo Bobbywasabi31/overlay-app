@@ -3,14 +3,18 @@ package com.bobbywasabi.overlayapp
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Paint
+import android.util.TypedValue
 import android.view.MotionEvent
 import android.view.View
 
 /** Temporary touch interception, only while the user is selecting the ball origin. */
-class BallCalibrationView(context: Context, private val selected: (Float, Float) -> Unit) : View(context) {
+class BallCalibrationView @JvmOverloads constructor(
+    context: Context,
+    private val selected: (Float, Float) -> Unit = { _, _ -> },
+) : View(context) {
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = 0xff64d8eb.toInt()
-        textSize = 18f * resources.displayMetrics.scaledDensity
+        textSize = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, 18f, resources.displayMetrics)
         textAlign = Paint.Align.CENTER
     }
     init { contentDescription = context.getString(R.string.calibrate_prompt); isClickable = true }

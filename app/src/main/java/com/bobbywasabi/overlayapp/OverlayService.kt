@@ -66,6 +66,7 @@ class OverlayService : Service() {
     private var terminating = false
     private var terminalStatus: SessionState.Status? = null
     private val throwObserver = Observer<Int> { renderThrowControls() }
+    private val calibrationTimeout = Runnable { removeCalibration() }
     private data class DisplaySize(val width: Int, val height: Int, val rotation: Int)
 
     private val screenOffReceiver = object : BroadcastReceiver() {
@@ -105,6 +106,7 @@ class OverlayService : Service() {
                 ThrowState.controller.resetTracking()
             }
             if (ThrowState.controller.armed && GestureThrowService.current?.gameIsForeground != true) ThrowState.disarm()
+            if (calibration != null && GestureThrowService.current?.gameIsForeground != true) removeCalibration()
             mainHandler.postDelayed(this, 300L)
         }
     }
@@ -308,7 +310,7 @@ class OverlayService : Service() {
             windowManager.addView(view, overlayParameters().apply {
                 flags = flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE.inv()
             })
-            mainHandler.postDelayed({ removeCalibration() }, 15_000L)
+            mainHandler.postDelayed(calibrationTimeout, 15_000L)
         } catch (error: RuntimeException) {
             Log.e(TAG, "Unable to show calibration", error)
             endSession(R.string.message_overlay_required, error = true)
@@ -316,6 +318,7 @@ class OverlayService : Service() {
     }
 
     private fun removeCalibration() {
+        mainHandler.removeCallbacks(calibrationTimeout)
         val view = calibration
         calibration = null
         view?.let { if (it.isAttachedToWindow) windowManager.removeViewImmediate(it) }
