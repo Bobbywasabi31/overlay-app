@@ -31,7 +31,12 @@ import android.util.Log
 import android.view.Display
 import android.view.Gravity
 import android.view.WindowManager
+import android.view.View
+import android.widget.Button
+import android.widget.LinearLayout
+import android.widget.Toast
 import androidx.annotation.StringRes
+import androidx.lifecycle.Observer
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.IntentCompat
@@ -50,11 +55,17 @@ class OverlayService : Service() {
     private var virtualDisplay: VirtualDisplay? = null
     private var imageReader: ImageReader? = null
     private var guidance: GuidanceView? = null
+    private var controls: LinearLayout? = null
+    private var autoButton: Button? = null
+    private var calibration: BallCalibrationView? = null
     private var initialDisplay: DisplaySize? = null
     private var displayListenerRegistered = false
     private var screenOffReceiverRegistered = false
     @Volatile private var active = false
     private var lastResultTime = 0L
+    private var terminating = false
+    private var terminalStatus: SessionState.Status? = null
+    private val throwObserver = Observer<Int> { renderThrowControls() }
     private data class DisplaySize(val width: Int, val height: Int, val rotation: Int)
 
     private val screenOffReceiver = object : BroadcastReceiver() {
@@ -89,7 +100,11 @@ class OverlayService : Service() {
                 endSession(R.string.message_overlay_required)
                 return
             }
-            if (SystemClock.elapsedRealtime() - lastResultTime > 900L) guidance?.showRing(null)
+            if (!CaptureTiming.isFresh(lastResultTime, SystemClock.elapsedRealtime())) {
+                guidance?.showRing(null)
+                ThrowState.controller.resetTracking()
+            }
+            if (ThrowState.controller.armed && GestureThrowService.current?.gameIsForeground != true) ThrowState.disarm()
             mainHandler.postDelayed(this, 300L)
         }
     }
@@ -103,9 +118,11 @@ class OverlayService : Service() {
         windowManager = overlayContext.getSystemService(WindowManager::class.java)
         workerThread = HandlerThread("ring-analysis").apply { start() }
         worker = Handler(workerThread.looper)
+        ThrowState.changes.observeForever(throwObserver)
     }
     override fun onBind(intent: Intent?): IBinder? = null
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (terminating) return START_NOT_STICKY
         if (intent?.action == ACTION_STOP) {
             endSession(R.string.message_stopped)
             return START_NOT_STICKY
@@ -136,6 +153,7 @@ class OverlayService : Service() {
         return START_NOT_STICKY
     }
     private fun startCapture(mediaProjection: MediaProjection) {
+        ThrowState.resetSession()
         val size = displaySize()
         initialDisplay = size
         val scale = min(1f, 960f / max(size.width, size.height))
@@ -153,15 +171,22 @@ class OverlayService : Service() {
                 val image = source.acquireLatestImage() ?: return@setOnImageAvailableListener
                 image.use {
                     val now = SystemClock.elapsedRealtime()
-                    if (now - lastAnalysis < 200L) return@use
+                    if (now - lastAnalysis < CaptureTiming.ANALYSIS_INTERVAL_MS) return@use
                     lastAnalysis = now
                     val plane = it.planes[0]
                     RgbaFrame.copy(plane.buffer, it.width, it.height, plane.rowStride, plane.pixelStride, pixels)
-                    val ring = tracker.update(analyzer.analyze(pixels, it.width, it.height))
+                    val ring = tracker.update(analyzer.analyze(pixels, it.width, it.height), now)
                     mainHandler.post {
                         if (active) {
+                            val delivered = SystemClock.elapsedRealtime()
+                            if (!CaptureTiming.isFresh(now, delivered)) {
+                                guidance?.showRing(null)
+                                ThrowState.controller.resetTracking()
+                                return@post
+                            }
                             lastResultTime = now
                             guidance?.showRing(ring)
+                            maybeThrow(ring, now)
                         }
                     }
                 }
@@ -171,8 +196,10 @@ class OverlayService : Service() {
             }
         }, worker)
         guidance = GuidanceView(overlayContext, size.width, size.height).also { view ->
+            view.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
             windowManager.addView(view, overlayParameters())
         }
+        createThrowControls()
         active = true
         virtualDisplay = mediaProjection.createVirtualDisplay(
             "ThrowAssistantCapture", width, height, resources.configuration.densityDpi,
@@ -183,6 +210,115 @@ class OverlayService : Service() {
         ContextCompat.registerReceiver(this, screenOffReceiver, IntentFilter(Intent.ACTION_SCREEN_OFF), ContextCompat.RECEIVER_NOT_EXPORTED)
         screenOffReceiverRegistered = true
         mainHandler.post(watchdog)
+    }
+
+    private fun maybeThrow(ring: ScreenAnalyzer.Ring?, frameTime: Long) {
+        val controller = ThrowState.controller
+        if (!controller.armed || calibration != null) return
+        if (!CaptureTiming.isFreshForThrow(frameTime, SystemClock.elapsedRealtime())) {
+            controller.resetTracking()
+            return
+        }
+        val service = GestureThrowService.current ?: run { ThrowState.disarm(); return }
+        val size = initialDisplay ?: return
+        val ball = ThrowState.ball
+        val bounds = service.gameWindowBounds()
+        // Split-screen and unknown foregrounds cannot use a full-display calibrated swipe.
+        if (ball == null || bounds == null || bounds.width() < size.width * 0.9 || bounds.height() < size.height * 0.85) {
+            ThrowState.disarm()
+            return
+        }
+        if (!controller.consider(ring, frameTime) || ring == null) return
+        val swipe = ThrowPlanner.plan(ring, ball, size.width, size.height, ThrowState.durationMs) ?: return
+        controller.beginThrow(frameTime)
+        ThrowState.changed()
+        try {
+            val dispatched = service.throwBall(swipe) { success ->
+                controller.finishThrow(success)
+                ThrowState.changed()
+            }
+            if (!dispatched) { controller.finishThrow(false); ThrowState.changed() }
+        } catch (error: RuntimeException) {
+            Log.e(TAG, "Unable to dispatch throw gesture", error)
+            controller.finishThrow(false)
+            ThrowState.changed()
+        }
+    }
+
+    private fun createThrowControls() {
+        val row = LinearLayout(overlayContext).apply {
+            orientation = LinearLayout.VERTICAL
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
+        }
+        controls = row
+        fun button(label: Int, action: () -> Unit): Button = Button(overlayContext).apply {
+            setText(label)
+            isAllCaps = false
+            minHeight = (48 * resources.displayMetrics.density).roundToInt()
+            setOnClickListener { action() }
+            row.addView(this)
+        }
+        button(R.string.calibrate_ball) { startCalibration() }
+        autoButton = button(R.string.auto_off) {
+            if (ThrowState.controller.armed) ThrowState.disarm()
+            else if (active && calibration == null && ThrowState.ball != null &&
+                initialDisplay?.let { it.height > it.width } == true &&
+                GestureThrowService.current?.gameIsForeground == true && !ThrowState.controller.busy) {
+                if (GestureThrowService.current?.busy == true) return@button
+                ThrowState.controller.arm()
+                ThrowState.changed()
+            } else Toast.makeText(this, R.string.auto_requirements, Toast.LENGTH_LONG).show()
+        }
+        button(R.string.stop) { endSession(R.string.message_stopped) }
+        val params = overlayParameters().apply {
+            width = WindowManager.LayoutParams.WRAP_CONTENT
+            height = WindowManager.LayoutParams.WRAP_CONTENT
+            flags = flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE.inv()
+            x = (8 * resources.displayMetrics.density).roundToInt()
+            y = (72 * resources.displayMetrics.density).roundToInt()
+        }
+        windowManager.addView(row, params)
+        renderThrowControls()
+    }
+
+    private fun renderThrowControls() {
+        autoButton?.text = if (ThrowState.controller.armed)
+            getString(R.string.auto_on, ThrowState.controller.throws, AutoThrowController.MAX_THROWS)
+        else getString(R.string.auto_off)
+    }
+
+    private fun startCalibration() {
+        if (!active || calibration != null) return
+        ThrowState.disarm()
+        if (GestureThrowService.current?.gameIsForeground != true) {
+            Toast.makeText(this, R.string.auto_requirements, Toast.LENGTH_LONG).show()
+            return
+        }
+        val size = initialDisplay ?: return
+        val view = BallCalibrationView(overlayContext) { x, y ->
+            val ball = ThrowPlanner.Ball(x / size.width, y / size.height)
+            if (ThrowPlanner.validBall(ball) && GestureThrowService.current?.gameIsForeground == true) {
+                ThrowState.calibrate(ball)
+                removeCalibration()
+                Toast.makeText(this, R.string.calibrated_ball, Toast.LENGTH_SHORT).show()
+            } else Toast.makeText(this, R.string.calibrate_invalid, Toast.LENGTH_SHORT).show()
+        }
+        calibration = view
+        try {
+            windowManager.addView(view, overlayParameters().apply {
+                flags = flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE.inv()
+            })
+            mainHandler.postDelayed({ removeCalibration() }, 15_000L)
+        } catch (error: RuntimeException) {
+            Log.e(TAG, "Unable to show calibration", error)
+            endSession(R.string.message_overlay_required, error = true)
+        }
+    }
+
+    private fun removeCalibration() {
+        val view = calibration
+        calibration = null
+        view?.let { if (it.isAttachedToWindow) windowManager.removeViewImmediate(it) }
     }
     @Suppress("DEPRECATION")
     private fun displaySize(): DisplaySize {
@@ -225,33 +361,48 @@ class OverlayService : Service() {
             .setOngoing(true).setSilent(true).setCategory(NotificationCompat.CATEGORY_SERVICE).build()
     }
     private fun endSession(@StringRes message: Int, error: Boolean = false) {
+        if (terminating) return
+        terminating = true
         active = false
+        ThrowState.resetSession()
         guidance?.showRing(null)
-        SessionState.update(if (error) SessionState.Phase.ERROR else SessionState.Phase.IDLE, message)
+        terminalStatus = SessionState.Status(if (error) SessionState.Phase.ERROR else SessionState.Phase.IDLE, message)
+        SessionState.update(SessionState.Phase.STOPPING, R.string.status_stopping)
         stopSelf()
     }
     override fun onDestroy() {
+        terminating = true
         active = false
+        ThrowState.changes.removeObserver(throwObserver)
+        ThrowState.resetSession()
         mainHandler.removeCallbacksAndMessages(null)
-        if (displayListenerRegistered) displayManager.unregisterDisplayListener(displayListener)
-        if (screenOffReceiverRegistered) unregisterReceiver(screenOffReceiver)
-        virtualDisplay?.release()
+        if (displayListenerRegistered) cleanup { displayManager.unregisterDisplayListener(displayListener) }
+        if (screenOffReceiverRegistered) cleanup { unregisterReceiver(screenOffReceiver) }
+        cleanup { virtualDisplay?.release() }
         virtualDisplay = null
-        projection?.unregisterCallback(projectionCallback)
-        projection?.stop()
+        cleanup { projection?.unregisterCallback(projectionCallback) }
+        cleanup { projection?.stop() }
         projection = null
-        guidance?.let { view -> if (view.isAttachedToWindow) windowManager.removeViewImmediate(view) }
+        cleanup { removeCalibration() }
+        controls?.let { view -> cleanup { if (view.isAttachedToWindow) windowManager.removeViewImmediate(view) } }
+        controls = null
+        autoButton = null
+        guidance?.let { view -> cleanup { if (view.isAttachedToWindow) windowManager.removeViewImmediate(view) } }
         guidance = null
         val reader = imageReader
         imageReader = null
-        reader?.setOnImageAvailableListener(null, null)
+        cleanup { reader?.setOnImageAvailableListener(null, null) }
         worker.removeCallbacksAndMessages(null)
         // Serialize closing with any frame still being read.
-        worker.post { reader?.close() }
+        worker.post { cleanup { reader?.close() } }
         workerThread.quitSafely()
-        stopForeground(STOP_FOREGROUND_REMOVE)
-        if (SessionState.current.isActive) SessionState.update(SessionState.Phase.IDLE, R.string.message_stopped)
+        cleanup { stopForeground(STOP_FOREGROUND_REMOVE) }
+        val status = terminalStatus ?: SessionState.Status(SessionState.Phase.IDLE, R.string.message_stopped)
+        SessionState.update(status.phase, status.message)
         super.onDestroy()
+    }
+    private fun cleanup(action: () -> Unit) {
+        try { action() } catch (error: RuntimeException) { Log.w(TAG, "Capture cleanup failed", error) }
     }
     companion object {
         const val ACTION_START = "com.bobbywasabi.overlayapp.START"

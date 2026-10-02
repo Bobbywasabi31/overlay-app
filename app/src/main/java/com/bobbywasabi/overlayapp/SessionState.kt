@@ -6,9 +6,10 @@ import androidx.lifecycle.MutableLiveData
 
 /** In-process state: consent is never saved or reused after process death. */
 object SessionState {
-    enum class Phase { IDLE, STARTING, RUNNING, ERROR }
+    enum class Phase { IDLE, STARTING, RUNNING, STOPPING, ERROR }
     data class Status(val phase: Phase, @StringRes val message: Int) {
-        val isActive: Boolean get() = phase == Phase.STARTING || phase == Phase.RUNNING
+        val isRunning: Boolean get() = phase == Phase.RUNNING
+        val isActive: Boolean get() = phase == Phase.STARTING || phase == Phase.RUNNING || phase == Phase.STOPPING
     }
     private val mutable = MutableLiveData(Status(Phase.IDLE, R.string.message_idle))
     val status: LiveData<Status> = mutable

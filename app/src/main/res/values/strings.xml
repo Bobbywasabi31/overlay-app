@@ -8,6 +8,7 @@
     <string name="status_starting">Starting screen capture…</string>
     <string name="status_running">Overlay is running</string>
     <string name="status_error">Session stopped</string>
+    <string name="status_stopping">Stopping capture…</string>
     <string name="message_idle">Allow the overlay, then start a screen-sharing session.</string>
     <string name="message_running">Look for the cyan marker on a colored ring. You can still tap and swipe through it.</string>
     <string name="message_cancelled">Screen sharing was cancelled. Tap Start when you are ready.</string>
@@ -28,7 +29,7 @@
     <string name="privacy">Screen frames are analyzed on this device, never saved or uploaded. Sharing covers your entire screen; stop before opening private content.</string>
     <string name="how_title">A little guidance</string>
     <string name="how_body">1. Tap Start and approve Android’s screen-sharing prompt.\n\n2. Open the practice screen or switch to your target app. A cyan marker appears when a colored ring is detected.\n\n3. Stop from this app, the notification, or Android’s sharing controls.</string>
-    <string name="limitations">Detection is experimental. It can miss rings or mark other circular objects. It does not predict throw grades or automate gestures.</string>
+    <string name="limitations">Detection and automatic throws are experimental. Rings can be missed or mistaken for other objects, and swipes can miss. Throw grades and catches are not predicted.</string>
     <string name="notification_channel">Screen analysis</string>
     <string name="notification_title">Throw Assistant is running</string>
     <string name="notification_body">Analyzing your screen on this device. Tap to open controls.</string>
@@ -40,4 +41,23 @@
     <string name="demo_description">Animated practice ring. Tap to change its color.</string>
     <string name="demo_taps">Touches received: %1$d</string>
     <string name="settings_unavailable">Android could not open overlay settings. Enable “Display over other apps” in the app’s system settings.</string>
+    <string name="thrower_service_name">Throw Assistant gestures</string>
+    <string name="thrower_service_description">Optional automatic swipes in Pokémon GO, only after you calibrate a ball position and turn Auto on. The service checks the focused app package and window bounds; it does not read or store UI text. Stop ends capture and disables future throws.</string>
+    <string name="thrower_permission">Open gesture permission settings</string>
+    <string name="thrower_settings_unavailable">Enable Throw Assistant gestures in Android Accessibility settings.</string>
+    <string name="thrower_connected">Gesture service connected</string>
+    <string name="thrower_disconnected">Gesture service off — overlay guidance still works</string>
+    <string name="auto_title">Automatic Poké Ball throws</string>
+    <string name="auto_body">Enable “Throw Assistant gestures” in Accessibility settings. Start capture, open a Pokémon GO encounter in portrait, tap “Set ball” in the floating controls, then tap the ball center. Tap “Auto: off” to arm up to five throws. Auto pauses when you leave the game; arm again to resume. A ring must stay steady, then disappear before another throw. Stop disables future swipes.</string>
+    <string name="throw_duration">Swipe duration: %1$d ms</string>
+    <string name="throw_duration_default">Swipe duration: 350 ms</string>
+    <string name="throw_duration_description">Adjust swipe duration from 150 to 600 milliseconds</string>
+    <string name="calibrate_ball">Set ball</string>
+    <string name="calibrate_prompt">Tap the ball center</string>
+    <string name="calibrate_invalid">Select the ball in the lower part of the game screen.</string>
+    <string name="calibrated_ball">Ball position set. Tap Auto to arm.</string>
+    <string name="auto_off">Auto: off</string>
+    <string name="auto_on">Auto: %1$d/%2$d</string>
+    <string name="auto_requirements">Enable gesture permission, open Pokémon GO in portrait, then Set ball before turning Auto on.</string>
+    <string name="demo_small">Toggle small pale ring</string>
 </resources>

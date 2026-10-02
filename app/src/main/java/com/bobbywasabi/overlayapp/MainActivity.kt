@@ -11,6 +11,7 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.widget.Toast
+import android.widget.SeekBar
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
@@ -71,6 +72,22 @@ class MainActivity : AppCompatActivity() {
         binding.permissionButton.setOnClickListener { openOverlaySettings() }
         binding.stopButton.setOnClickListener { stopService(Intent(this, OverlayService::class.java)) }
         binding.practiceButton.setOnClickListener { startActivity(Intent(this, DemoActivity::class.java)) }
+        binding.throwerPermissionButton.setOnClickListener {
+            try {
+                startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+            } catch (_: ActivityNotFoundException) {
+                Toast.makeText(this, R.string.thrower_settings_unavailable, Toast.LENGTH_LONG).show()
+            }
+        }
+        binding.throwDuration.progress = (ThrowState.durationMs - 150L).toInt()
+        binding.throwDuration.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                if (fromUser) ThrowState.setDuration(150L + progress)
+            }
+            override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
+            override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
+        })
+        ThrowState.changes.observe(this) { render() }
         SessionState.status.observe(this) { render() }
     }
     override fun onResume() {
@@ -117,6 +134,7 @@ class MainActivity : AppCompatActivity() {
             SessionState.Phase.IDLE -> R.string.status_idle
             SessionState.Phase.STARTING -> R.string.status_starting
             SessionState.Phase.RUNNING -> R.string.status_running
+            SessionState.Phase.STOPPING -> R.string.status_stopping
             SessionState.Phase.ERROR -> R.string.status_error
         })
         binding.statusMessage.setText(status.message)
@@ -124,6 +142,8 @@ class MainActivity : AppCompatActivity() {
         binding.startButton.isEnabled = !status.isActive && !requestingStart
         binding.stopButton.isEnabled = status.isActive
         binding.permissionButton.isEnabled = !requestingStart && !status.isActive
+        binding.throwerStatus.setText(if (GestureThrowService.current != null) R.string.thrower_connected else R.string.thrower_disconnected)
+        binding.throwDurationLabel.text = getString(R.string.throw_duration, ThrowState.durationMs)
     }
     companion object { private const val REQUESTING_START = "requesting_start" }
 }

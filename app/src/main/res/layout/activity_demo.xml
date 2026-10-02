@@ -9,6 +9,9 @@
         android:minHeight="100dp" android:contentDescription="@string/demo_description"
         android:clickable="true" android:focusable="true" />
     <TextView android:id="@+id/tapCount" style="@style/BodyText" android:gravity="center" />
+    <com.google.android.material.button.MaterialButton android:id="@+id/smallRingButton"
+        android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="48dp"
+        android:text="@string/demo_small" android:textAllCaps="false" />
     <com.google.android.material.button.MaterialButton android:id="@+id/backButton"
         android:layout_width="match_parent" android:layout_height="wrap_content"
         android:minHeight="52dp" android:text="@string/demo_back" android:textAllCaps="false" />

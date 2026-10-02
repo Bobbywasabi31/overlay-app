@@ -30,4 +30,16 @@ class RingTrackerTest {
         assertTrue(tracked.x > ring.x && tracked.x < next.x)
         assertEquals(next.radius, tracked.radius, 0f)
     }
+    @Test fun longGapRequiresTwoFreshFrames() {
+        assertNull(tracker.update(ring, 1000))
+        assertNotNull(tracker.update(ring, 1067))
+        assertNull(tracker.update(ring, 1968))
+        assertNotNull(tracker.update(ring, 2035))
+    }
+    @Test fun expiryBoundaryPreservesNormalTracking() {
+        tracker.update(ring, 1000)
+        assertNotNull(tracker.update(ring, 1900))
+        assertNull(tracker.update(ring, 1899))
+        assertNotNull(tracker.update(ring, 1966))
+    }
 }

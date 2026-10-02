@@ -16,5 +16,12 @@
         </activity>
         <service android:name=".OverlayService" android:exported="false"
             android:foregroundServiceType="mediaProjection" />
+        <service android:name=".GestureThrowService" android:exported="true"
+            android:label="@string/thrower_service_name" android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data android:name="android.accessibilityservice" android:resource="@xml/throw_accessibility_service" />
+        </service>
     </application>
 </manifest>

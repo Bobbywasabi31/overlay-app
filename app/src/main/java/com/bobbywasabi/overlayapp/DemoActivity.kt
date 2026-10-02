@@ -19,5 +19,6 @@ class DemoActivity : AppCompatActivity() {
             binding.tapCount.text = getString(R.string.demo_taps, ++taps)
         }
         binding.backButton.setOnClickListener { finish() }
+        binding.smallRingButton.setOnClickListener { binding.practiceRing.toggleSmallPale() }
     }
 }

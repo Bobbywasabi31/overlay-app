@@ -9,10 +9,11 @@ android {
         applicationId = "com.bobbywasabi.overlayapp"
         minSdk = 24
         targetSdk = 35
-        versionCode = 3
-        versionName = "0.2.1-alpha.2"
+        versionCode = 4
+        versionName = "0.3.0-alpha.3"
     }
     buildFeatures { viewBinding = true }
+    testOptions { unitTests.isIncludeAndroidResources = true }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -34,4 +35,5 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-livedata-ktx:2.8.7")
     implementation("com.google.android.material:material:1.12.0")
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.robolectric:robolectric:4.14.1")
 }
