@@ -20,25 +20,28 @@ class GestureThrowService : AccessibilityService() {
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
-        if (!gameIsForeground) ThrowState.disarm()
+        if (targetWindow()?.target != ThrowState.target) ThrowState.disarm()
     }
 
-    val gameIsForeground: Boolean get() = gameWindowBounds() != null
+    val targetIsForeground: Boolean get() = targetWindow() != null
+    data class TargetWindow(val target: ThrowTarget, val bounds: Rect)
 
     @Suppress("DEPRECATION")
-    fun gameWindowBounds(): Rect? {
+    fun targetWindow(): TargetWindow? {
         val window = windows.firstOrNull {
             it.type == AccessibilityWindowInfo.TYPE_APPLICATION && it.isActive && it.isFocused
         } ?: return null
         val root = window.root ?: return null
         return try {
-            if (root.packageName?.toString() != GAME_PACKAGE) null
-            else Rect().also { window.getBoundsInScreen(it) }
+            val target = ThrowTargetResolver.resolve(root.packageName?.toString(), packageName, PracticeSession.visible)
+            if (target == null) null
+            else TargetWindow(target, Rect().also { window.getBoundsInScreen(it) })
         } finally { root.recycle() }
     }
 
     fun throwBall(swipe: ThrowPlanner.Swipe, completed: (Boolean) -> Unit): Boolean {
-        if (busy || !gameIsForeground || !SessionState.current.isRunning) return false
+        val target = targetWindow()?.target
+        if (busy || target == null || target != ThrowState.target || !SessionState.current.isRunning) return false
         val path = Path().apply {
             moveTo(swipe.startX, swipe.startY)
             lineTo(swipe.endX, swipe.endY)
@@ -68,7 +71,6 @@ class GestureThrowService : AccessibilityService() {
     }
 
     companion object {
-        const val GAME_PACKAGE = "com.nianticlabs.pokemongo"
         var current: GestureThrowService? = null
             private set
     }

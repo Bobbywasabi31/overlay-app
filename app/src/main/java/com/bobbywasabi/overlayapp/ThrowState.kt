@@ -9,6 +9,8 @@ object ThrowState {
         private set
     var ball: ThrowPlanner.Ball? = null
         private set
+    var target: ThrowTarget? = null
+        private set
     var durationMs = 350L
         private set
     private val mutable = MutableLiveData(0)
@@ -20,12 +22,14 @@ object ThrowState {
         controller.disarm()
         controller = AutoThrowController()
         ball = null
+        target = null
         changed()
     }
-    fun calibrate(value: ThrowPlanner.Ball) {
+    fun calibrate(value: ThrowPlanner.Ball, destination: ThrowTarget = ThrowTarget.GAME) {
         require(ThrowPlanner.validBall(value))
         controller.disarm()
         ball = value
+        target = destination
         changed()
     }
     fun setDuration(value: Long) {

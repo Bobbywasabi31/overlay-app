@@ -105,8 +105,8 @@ class OverlayService : Service() {
                 guidance?.showRing(null)
                 ThrowState.controller.resetTracking()
             }
-            if (ThrowState.controller.armed && GestureThrowService.current?.gameIsForeground != true) ThrowState.disarm()
-            if (calibration != null && GestureThrowService.current?.gameIsForeground != true) removeCalibration()
+            if (ThrowState.controller.armed && GestureThrowService.current?.targetWindow()?.target != ThrowState.target) ThrowState.disarm()
+            if (calibration != null && GestureThrowService.current?.targetIsForeground != true) removeCalibration()
             mainHandler.postDelayed(this, 300L)
         }
     }
@@ -224,9 +224,11 @@ class OverlayService : Service() {
         val service = GestureThrowService.current ?: run { ThrowState.disarm(); return }
         val size = initialDisplay ?: return
         val ball = ThrowState.ball
-        val bounds = service.gameWindowBounds()
+        val window = service.targetWindow()
+        val bounds = window?.bounds
         // Split-screen and unknown foregrounds cannot use a full-display calibrated swipe.
-        if (ball == null || bounds == null || bounds.width() < size.width * 0.9 || bounds.height() < size.height * 0.85) {
+        if (ball == null || window == null || bounds == null || window.target != ThrowState.target ||
+            bounds.width() < size.width * 0.9 || bounds.height() < size.height * 0.85) {
             ThrowState.disarm()
             return
         }
@@ -265,7 +267,8 @@ class OverlayService : Service() {
             if (ThrowState.controller.armed) ThrowState.disarm()
             else if (active && calibration == null && ThrowState.ball != null &&
                 initialDisplay?.let { it.height > it.width } == true &&
-                GestureThrowService.current?.gameIsForeground == true && !ThrowState.controller.busy) {
+                ThrowState.target != null && GestureThrowService.current?.targetWindow()?.target == ThrowState.target &&
+                !ThrowState.controller.busy) {
                 if (GestureThrowService.current?.busy == true) return@button
                 ThrowState.controller.arm()
                 ThrowState.changed()
@@ -292,15 +295,16 @@ class OverlayService : Service() {
     private fun startCalibration() {
         if (!active || calibration != null) return
         ThrowState.disarm()
-        if (GestureThrowService.current?.gameIsForeground != true) {
+        val destination = GestureThrowService.current?.targetWindow()?.target
+        if (destination == null) {
             Toast.makeText(this, R.string.auto_requirements, Toast.LENGTH_LONG).show()
             return
         }
         val size = initialDisplay ?: return
         val view = BallCalibrationView(overlayContext) { x, y ->
             val ball = ThrowPlanner.Ball(x / size.width, y / size.height)
-            if (ThrowPlanner.validBall(ball) && GestureThrowService.current?.gameIsForeground == true) {
-                ThrowState.calibrate(ball)
+            if (ThrowPlanner.validBall(ball) && GestureThrowService.current?.targetWindow()?.target == destination) {
+                ThrowState.calibrate(ball, destination)
                 removeCalibration()
                 Toast.makeText(this, R.string.calibrated_ball, Toast.LENGTH_SHORT).show()
             } else Toast.makeText(this, R.string.calibrate_invalid, Toast.LENGTH_SHORT).show()
