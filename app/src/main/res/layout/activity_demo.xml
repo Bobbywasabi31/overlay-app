@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="match_parent">
+    <com.bobbywasabi.overlayapp.PracticeRingView android:id="@+id/practiceRing"
+        android:layout_width="match_parent" android:layout_height="match_parent"
+        android:contentDescription="@string/demo_description" android:clickable="true" android:focusable="true" />
+    <FrameLayout android:id="@+id/practiceHud" android:layout_width="match_parent" android:layout_height="match_parent"
+        android:padding="12dp">
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="vertical" android:layout_gravity="top" android:padding="8dp" android:background="#CC10141D">
+            <TextView style="@style/SectionTitle" android:gravity="center" android:text="@string/demo_title" />
+            <TextView style="@style/BodyText" android:gravity="center" android:text="@string/demo_body" android:textSize="12sp" />
+            <TextView android:id="@+id/practiceResult" style="@style/BodyText" android:gravity="center"
+                android:text="@string/demo_ready" android:accessibilityLiveRegion="polite" />
+            <TextView android:id="@+id/tapCount" style="@style/BodyText" android:gravity="center" android:textSize="12sp" />
+        </LinearLayout>
+        <HorizontalScrollView android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_gravity="bottom" android:fillViewport="false">
+            <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content" android:orientation="horizontal">
+                <com.google.android.material.button.MaterialButton android:id="@+id/colorButton"
+                    android:layout_width="wrap_content" android:layout_height="wrap_content" android:minHeight="48dp"
+                    android:text="@string/demo_color" android:textAllCaps="false" />
+                <com.google.android.material.button.MaterialButton android:id="@+id/smallRingButton"
+                    android:layout_width="wrap_content" android:layout_height="wrap_content" android:minHeight="48dp"
+                    android:text="@string/demo_small" android:textAllCaps="false" />
+                <com.google.android.material.button.MaterialButton android:id="@+id/movementButton"
+                    android:layout_width="wrap_content" android:layout_height="wrap_content" android:minHeight="48dp"
+                    android:text="@string/demo_movement" android:textAllCaps="false" />
+                <com.google.android.material.button.MaterialButton android:id="@+id/backButton"
+                    android:layout_width="wrap_content" android:layout_height="wrap_content" android:minHeight="48dp"
+                    android:text="@string/demo_back" android:textAllCaps="false" />
+            </LinearLayout>
+        </HorizontalScrollView>
+    </FrameLayout>
+</FrameLayout>

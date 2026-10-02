@@ -2,53 +2,38 @@ plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
 }
-
 android {
     namespace = "com.bobbywasabi.overlayapp"
-    compileSdk = 34
-
+    compileSdk = 35
     defaultConfig {
         applicationId = "com.bobbywasabi.overlayapp"
         minSdk = 24
-        targetSdk = 34
-        versionCode = 1
-        versionName = "1.0"
-
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        targetSdk = 35
+        versionCode = 5
+        versionName = "0.3.1-alpha.4"
     }
-
-    buildTypes {
-        release {
-            isMinifyEnabled = false
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
-            )
-        }
-    }
-    
+    buildFeatures { viewBinding = true }
+    testOptions { unitTests.isIncludeAndroidResources = true }
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_1_8
-        targetCompatibility = JavaVersion.VERSION_1_8
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
-    
-    kotlinOptions {
-        jvmTarget = "1.8"
+    kotlinOptions { jvmTarget = "17" }
+    lint {
+        warningsAsErrors = true
+        // Keep this prototype on API 35 until newer target behavior is device-tested.
+        // The time-dependent SDK upgrade advisory is not a code-correctness gate.
+        disable += "OldTargetApi"
+        // Remote dependency-update recommendations are not reproducible build gates.
+        disable += setOf("GradleDependency", "AndroidGradlePluginVersion", "NewerVersionAvailable")
     }
 }
-
 dependencies {
-    implementation("androidx.core:core-ktx:1.12.0")
-    implementation("androidx.appcompat:appcompat:1.6.1")
-    implementation("com.google.android.material:material:1.10.0")
-    implementation("androidx.constraintlayout:constraintlayout:2.1.4")
-    
-    // CHANGE THIS LINE - use official OpenCV:
-    implementation(project(":opencv"))
-    // OR use this dependency instead:
-    // implementation("com.quickbirdstudios:opencv:4.5.3.0")
-    
+    implementation("androidx.core:core-ktx:1.15.0")
+    implementation("androidx.activity:activity-ktx:1.9.3")
+    implementation("androidx.appcompat:appcompat:1.7.0")
+    implementation("androidx.lifecycle:lifecycle-livedata-ktx:2.8.7")
+    implementation("com.google.android.material:material:1.12.0")
     testImplementation("junit:junit:4.13.2")
-    androidTestImplementation("androidx.test.ext:junit:1.1.5")
-    androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
+    testImplementation("org.robolectric:robolectric:4.14.1")
 }
