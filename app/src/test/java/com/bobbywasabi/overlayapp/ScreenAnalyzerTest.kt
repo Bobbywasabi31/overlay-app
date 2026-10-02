@@ -75,6 +75,28 @@ class ScreenAnalyzerTest {
         assertEquals(0.5f, ring.y, 0.01f)
         assertEquals(32f / landscapeHeight, ring.radius, 0.01f)
     }
+    @Test fun detectsSmallDesaturatedRing() {
+        // A small blended ring like the reported target after capture downscaling.
+        val pixels = IntArray(width * height) { i ->
+            if (abs(hypot(i % width - 120.0, i / width - 200.0) - 5.5) <= 0.7)
+                0xff9ed395.toInt() else 0xff969696.toInt()
+        }
+        val ring = requireNotNull(analyzer.analyze(pixels, width, height))
+        assertEquals(0.5f, ring.x, 0.01f)
+        assertEquals(0.5f, ring.y, 0.01f)
+        assertEquals(5.5f / width, ring.radius, 0.005f)
+    }
+    @Test fun relaxedColorMaskStillRejectsSmallFilledDisk() {
+        val pixels = IntArray(width * height) { i ->
+            if (hypot(i % width - 120.0, i / width - 200.0) <= 5.5)
+                0xff9ed395.toInt() else 0xff969696.toInt()
+        }
+        assertNull(analyzer.analyze(pixels, width, height))
+    }
+    @Test fun rejectsPaleCyanAndGrayRings() {
+        assertNull(analyzer.analyze(frame(0xff9ed3d3.toInt()), width, height))
+        assertNull(analyzer.analyze(frame(0xffc4cbc4.toInt()), width, height))
+    }
     @Test(expected = IllegalArgumentException::class)
     fun rejectsInvalidFrameDimensions() { analyzer.analyze(IntArray(4), 3, 3) }
 }

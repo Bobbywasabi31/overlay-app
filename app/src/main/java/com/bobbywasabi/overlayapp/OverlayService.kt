@@ -138,7 +138,7 @@ class OverlayService : Service() {
     private fun startCapture(mediaProjection: MediaProjection) {
         val size = displaySize()
         initialDisplay = size
-        val scale = min(1f, 640f / max(size.width, size.height))
+        val scale = min(1f, 960f / max(size.width, size.height))
         val width = (size.width * scale).roundToInt().coerceAtLeast(1)
         val height = (size.height * scale).roundToInt().coerceAtLeast(1)
         val reader = ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, 2)

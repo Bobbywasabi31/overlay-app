@@ -52,7 +52,7 @@ class ScreenAnalyzer {
                     }
                 }
             }
-            if (tail < 24 || minX == 0 || minY == 0 || maxX == width - 1 || maxY == height - 1) continue
+            if (tail < 16 || minX == 0 || minY == 0 || maxX == width - 1 || maxY == height - 1) continue
             val boxWidth = maxX - minX + 1
             val boxHeight = maxY - minY + 1
             if (boxWidth.toFloat() / boxHeight !in 0.85f..1.18f) continue
@@ -61,7 +61,7 @@ class ScreenAnalyzer {
             if (cx / width !in 0.12..0.88 || cy / height !in 0.18..0.82) continue
             val shortSide = min(width, height)
             val outerRadius = (boxWidth + boxHeight) / 4.0
-            if (outerRadius < max(6.0, shortSide * 0.018) || outerRadius > shortSide * 0.38) continue
+            if (outerRadius < max(4.0, shortSide * 0.009) || outerRadius > shortSide * 0.38) continue
             // Reject filled disks and broad patches of scenery.
             if (tail / (PI * outerRadius * outerRadius) > 0.48) continue
             var sum = 0.0
@@ -97,7 +97,8 @@ class ScreenAnalyzer {
         val high = max(red, max(green, blue))
         val low = min(red, min(green, blue))
         val delta = high - low
-        if (high < 100 || delta < high * 0.45f) return false
+        // Thin, antialiased game rings lose saturation when blended with the scene.
+        if (high < 100 || delta < high * 0.25f) return false
         var hue = when (high) {
             red -> 60f * (green - blue) / delta
             green -> 120f + 60f * (blue - red) / delta

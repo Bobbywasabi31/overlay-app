@@ -48,7 +48,7 @@ Changing display geometry, including rotation, ends the session to prevent misal
 
 ## Detection and limits
 
-The pure Kotlin analyzer uses a color mask, connected components, thin-ring checks, circular geometry, and angular coverage. It searches the central display region, excludes cyan to avoid detecting its own guidance, and requires two nearby detections before displaying a target. Frames are downscaled to at most 640 pixels on the long side and analyzed at most five times per second on a worker thread. Skipped frames are closed too. Misses clear the marker immediately; stalled capture clears it after about a second.
+The pure Kotlin analyzer uses a color mask, connected components, thin-ring checks, circular geometry, and angular coverage. It searches the central display region, excludes cyan to avoid detecting its own guidance, and requires two nearby detections before displaying a target. Frames are downscaled to at most 960 pixels on the long side and analyzed at most five times per second on a worker thread. Skipped frames are closed too. Misses clear the marker immediately; stalled capture clears it after about a second.
 
 This is a heuristic, not a trained model or calibrated gameplay assistant. Busy backgrounds, occlusion, tiny rings, unusual colors, or overlapping objects can cause missed or false detections. Other apps may block overlays or protect screen content. Passing synthetic tests does not establish gameplay accuracy or compatibility with every device.
 
@@ -73,3 +73,7 @@ Device smoke checks still required:
 `app/src/main` contains the manifest, Kotlin source, and resources. `app/src/test` contains JVM tests. `.github/workflows/android.yml` builds and validates the app.
 
 This educational project is unaffiliated with Niantic or The Pokémon Company. The original project's warning remains relevant: using assistance with Pokémon GO may violate the game's terms and risk an account ban.
+
+## Alpha 2 detection fix
+
+A reported small green target disappeared after downscaling because its blended pixels fell below the original color threshold. Capture now preserves more detail (960-pixel long edge), the color mask accepts antialiased rings, and the minimum ring size is smaller. Circularity, hollow-shape, angular-coverage, cyan rejection, and two-frame checks remain enabled. The reported screenshot detects offline; additional devices, ring sizes, and scenes still need testing.
