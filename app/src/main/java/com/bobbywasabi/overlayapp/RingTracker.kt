@@ -17,11 +17,13 @@ class RingTracker {
         val old = previous
         previous = candidate
         previousTime = nowMs
-        if (candidate == null || old == null) {
-            // Brief flicker: hold the last confirmed ring instead of dropping the track.
+        if (candidate == null) {
+            // Analyzer missed: hold the last confirmed ring through brief flicker.
             val held = lastConfirmed
-            return if (held != null && nowMs - lastConfirmedTime <= FLICKER_HOLD_MS) held else null
+            return if (held != null && nowMs >= lastConfirmedTime &&
+                nowMs - lastConfirmedTime <= FLICKER_HOLD_MS) held else null
         }
+        if (old == null) return null
         if (hypot(candidate.x - old.x, candidate.y - old.y) > 0.08f || abs(candidate.radius - old.radius) > 0.07f) return null
         val confirmed = candidate.copy(x = old.x * 0.35f + candidate.x * 0.65f, y = old.y * 0.35f + candidate.y * 0.65f)
         displayHold = confirmed
