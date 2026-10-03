@@ -203,8 +203,8 @@ class GestureThrowService : AccessibilityService() {
     }
 
     companion object {
-        const val HOLD_MS = 750L
-        const val HOLD_TIMEOUT_MS = 1500L
+        const val HOLD_MS = 30_750L
+        const val HOLD_TIMEOUT_MS = 35_000L
         var current: GestureThrowService? = null
             private set
     }
