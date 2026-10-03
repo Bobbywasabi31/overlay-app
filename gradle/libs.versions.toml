@@ -2,7 +2,7 @@
 # dependency versions; referenced via `libs.*` accessors in build files.
 [versions]
 agp = "8.7.3"
-kotlin = "2.0.21"
+kotlin = "2.4.20"
 coreKtx = "1.15.0"
 activityKtx = "1.9.3"
 appcompat = "1.7.0"
