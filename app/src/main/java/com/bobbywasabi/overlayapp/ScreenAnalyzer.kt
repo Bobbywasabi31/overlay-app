@@ -17,6 +17,7 @@ class ScreenAnalyzer {
     private var queue = IntArray(0)
     private var blockSat = IntArray(0)
     private var blockBg = IntArray(0)
+    private var blockTmp = IntArray(0)
 
     /** Per-frame diagnostics for the debug HUD (items 21, 85). */
     data class Stats(
@@ -66,6 +67,7 @@ class ScreenAnalyzer {
         if (blockSat.size != bw * bh) {
             blockSat = IntArray(bw * bh)
             blockBg = IntArray(bw * bh)
+            blockTmp = IntArray(bw * bh)
         }
         blockSat.fill(0)
         for (y in 0 until height) {
@@ -87,7 +89,7 @@ class ScreenAnalyzer {
         // the blocks most likely to contain the ring itself.
         // Separable box blur (horizontal then vertical) for speed: 10 taps
         // per block instead of 24.
-        val temp = IntArray(bw * bh)
+        val temp = blockTmp
         for (by in 0 until bh) {
             for (bx in 0 until bw) {
                 var sum = 0
