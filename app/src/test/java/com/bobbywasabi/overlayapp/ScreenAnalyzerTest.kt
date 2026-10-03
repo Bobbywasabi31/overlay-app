@@ -44,6 +44,18 @@ class ScreenAnalyzerTest {
         }
         assertNull(analyzer.analyze(pixels, width, height))
     }
+    @Test fun detectsRingOnSaturatedBackground() {
+        // Regression: a plain vivid-pixel mask merges the ring with saturated
+        // scenery (grass); the local-contrast mask must separate them.
+        val grass = 0xff64aa3c.toInt()
+        val pixels = IntArray(width * height) { i ->
+            if (abs(hypot(i % width - 120.0, i / width - 220.0) - 44.0) <= 2.0) 0xffffd35a.toInt() else grass
+        }
+        val ring = requireNotNull(analyzer.analyze(pixels, width, height))
+        assertEquals(0.5f, ring.x, 0.01f)
+        assertEquals(0.55f, ring.y, 0.01f)
+        assertTrue(ring.confidence > 0.6f)
+    }
     @Test fun rejectsIncompleteArc() {
         val pixels = frame()
         for (y in 0 until height) for (x in 0 until 120) pixels[y * width + x] = 0
