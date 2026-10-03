@@ -29,7 +29,7 @@ jobs:
             exit 1
           fi
           echo "Manifest privacy guards OK: no backup, no INTERNET permission."
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '17'
