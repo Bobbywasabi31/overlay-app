@@ -26,7 +26,7 @@ class PracticePipelineTest {
         val scene = PracticeScene()
         val analyzer = ScreenAnalyzer()
         val tracker = RingTracker()
-        val gate = AutoThrowController().apply { arm() }
+        val gate = AutoThrowController().apply { arm(); maxThrowRadius = 1.0f }
         var tracked: ScreenAnalyzer.Ring? = null
         var ready = false
         for (i in 0..7) {

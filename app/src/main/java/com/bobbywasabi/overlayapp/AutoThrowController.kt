@@ -11,6 +11,8 @@ class AutoThrowController {
         private set
     var busy = false
         private set
+    /** Maximum ring radius (normalized) that we'll throw at. Defaults to excellent size. */
+    var maxThrowRadius = EXCELLENT_RADIUS_MAX
     private var previous: ScreenAnalyzer.Ring? = null
     private var previousTime: Long? = null
     private var stableSince: Long? = null
@@ -84,7 +86,7 @@ class AutoThrowController {
         // Target the excellent ring: wait for it to shrink to excellent size.
         return !waitingForClear && nowMs - stable >= STABLE_MS &&
             throwConfidence >= THROW_CONFIDENCE &&
-            ring.radius <= EXCELLENT_RADIUS_MAX &&
+            ring.radius <= maxThrowRadius &&
             (last == null || nowMs - last >= COOLDOWN_MS)
     }
 
