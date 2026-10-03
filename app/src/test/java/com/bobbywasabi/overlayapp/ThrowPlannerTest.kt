@@ -11,8 +11,9 @@ class ThrowPlannerTest {
         val swipe = requireNotNull(ThrowPlanner.plan(ring, ball, 1080, 2400, 350))
         assertEquals(540f, swipe.startX, 0.01f)
         assertEquals(2040f, swipe.startY, 0.01f)
-        assertEquals(648f, swipe.endX, 0.01f)
-        assertEquals(1080f, swipe.endY, 0.01f)
+        // 1.3x overshoot past the ring for a stronger throw.
+        assertEquals(680.4f, swipe.endX, 0.01f)
+        assertEquals(792f, swipe.endY, 0.01f)
         assertEquals(350L, swipe.durationMs)
     }
     @Test fun rejectsLandscapeAndInvalidCalibration() {

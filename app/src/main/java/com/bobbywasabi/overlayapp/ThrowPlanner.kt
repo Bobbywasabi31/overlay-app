@@ -11,6 +11,11 @@ object ThrowPlanner {
         if (width <= 0 || height <= width || !validBall(ball) || durationMs !in 150L..600L) return null
         if (ring.x !in 0.12f..0.88f || ring.y !in 0.18f..0.82f ||
             ring.radius !in 0.009f..0.38f || ring.confidence !in 0.7f..1f || ball.y - ring.y < 0.12f) return null
-        return Swipe(ball.x * width, ball.y * height, ring.x * width, ring.y * height, durationMs)
+        // Overshoot past the ring for a stronger throw; clamp to the screen.
+        // A swipe that ends exactly at the ring falls short in-game.
+        val overshoot = 1.3f
+        val endX = (ball.x + (ring.x - ball.x) * overshoot).coerceIn(0f, 1f) * width
+        val endY = (ball.y + (ring.y - ball.y) * overshoot).coerceIn(0f, 1f) * height
+        return Swipe(ball.x * width, ball.y * height, endX, endY, durationMs)
     }
 }

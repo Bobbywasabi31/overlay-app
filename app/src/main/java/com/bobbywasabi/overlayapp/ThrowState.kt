@@ -13,7 +13,7 @@ object ThrowState {
         private set
     var calibrationBounds: android.graphics.Rect? = null
         private set
-    var durationMs = 350L
+    var durationMs = 200L
         private set
     var dryRun = false
         private set
