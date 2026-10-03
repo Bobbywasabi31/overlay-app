@@ -1,7 +1,7 @@
 # Item 52: Gradle version catalog. Single source of truth for plugin and
 # dependency versions; referenced via `libs.*` accessors in build files.
 [versions]
-agp = "8.7.3"
+agp = "9.4.1"
 kotlin = "2.0.21"
 coreKtx = "1.15.0"
 activityKtx = "1.9.3"
