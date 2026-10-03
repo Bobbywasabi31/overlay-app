@@ -64,6 +64,17 @@
     <string name="calibrate_invalid">Select the ball center in the lower part of the current encounter.</string>
     <string name="calibrated_ball">Ball position set. Tap Auto to arm.</string>
     <string name="auto_off">Auto: off</string>
+    <string name="debug_off">Debug: off</string>
+    <string name="debug_on">Debug: on</string>
+    <string name="dry_run_off">Dry run: off</string>
+    <string name="dry_run_on">Dry run: on</string>
+    <string name="dry_run_would_hold">Dry run: would hold ball at (%1$.2f, %2$.2f).</string>
+    <string name="dry_run_would_throw">Dry run: would swipe to (%1$.2f, %2$.2f) over %3$d ms.</string>
+    <string name="message_idle_stopped">Capture stopped after 10 minutes without a detection. Tap Start for a new session.</string>
+    <string name="tos_title">Before you start</string>
+    <string name="tos_body">Throw Assistant reads your screen to find throw rings and can send swipes through an accessibility service. Using assistance like this with Pokémon GO may violate the game\u2019s terms of service and risks an account ban. Use it at your own risk, ideally on an alternate account.</string>
+    <string name="tos_acknowledge">I understand the risks</string>
+    <string name="tos_required">Please acknowledge the notice to continue.</string>
     <string name="auto_on">Auto: %1$d/%2$d</string>
     <string name="auto_holding">Auto: holding ball (%1$d/%2$d)</string>
     <string name="auto_enable_service">Turn on Throw Assistant gestures in Android Accessibility settings.</string>

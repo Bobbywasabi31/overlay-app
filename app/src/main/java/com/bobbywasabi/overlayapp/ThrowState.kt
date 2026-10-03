@@ -13,6 +13,8 @@ object ThrowState {
         private set
     var durationMs = 350L
         private set
+    var dryRun = false
+        private set
     var inputEpoch = 0L
         private set
     private val mutable = MutableLiveData(0)
@@ -34,6 +36,13 @@ object ThrowState {
         controller.disarm()
         ball = value
         target = destination
+        changed()
+    }
+    /** Dry-run exercises the full Auto pipeline but sends no gestures. */
+    fun setDryRun(value: Boolean) {
+        if (dryRun == value) return
+        dryRun = value
+        disarm()
         changed()
     }
     fun setDuration(value: Long) {

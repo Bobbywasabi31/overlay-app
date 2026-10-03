@@ -36,6 +36,21 @@ class RingTrackerTest {
         assertNull(tracker.update(ring, 1968))
         assertNotNull(tracker.update(ring, 2035))
     }
+    @Test fun displayTargetHoldsLastConfirmedRingBriefly() {
+        assertNull(tracker.displayTarget(1000))
+        tracker.update(ring, 1000)
+        tracker.update(ring, 1067)
+        assertNotNull(tracker.displayTarget(1100))
+        assertNotNull(tracker.displayTarget(1067 + RingTracker.DISPLAY_HOLD_MS))
+        assertNull(tracker.displayTarget(1067 + RingTracker.DISPLAY_HOLD_MS + 1))
+    }
+    @Test fun displayTargetSurvivesSingleMissedFrame() {
+        tracker.update(ring, 1000)
+        tracker.update(ring, 1067)
+        assertNull(tracker.update(null, 1134))
+        assertNotNull(tracker.displayTarget(1200))
+        assertNull(tracker.displayTarget(1300))
+    }
     @Test fun expiryBoundaryPreservesNormalTracking() {
         tracker.update(ring, 1000)
         assertNotNull(tracker.update(ring, 1900))

@@ -57,12 +57,18 @@ class OverlayService : Service() {
     private var guidance: GuidanceView? = null
     private var controls: LinearLayout? = null
     private var autoButton: Button? = null
+    private var debugButton: Button? = null
+    private var dryRunButton: Button? = null
+    private var dryRunHolding = false
+    private var debugHud: android.widget.TextView? = null
+    private var debugEnabled = false
     private var calibration: BallCalibrationView? = null
     private var initialDisplay: DisplaySize? = null
     private var displayListenerRegistered = false
     private var screenOffReceiverRegistered = false
     @Volatile private var active = false
     private var lastResultTime = 0L
+    private var lastActivityTime = 0L
     private var terminating = false
     private var terminalStatus: SessionState.Status? = null
     private val throwObserver = Observer<Int> { renderThrowControls() }
@@ -97,6 +103,10 @@ class OverlayService : Service() {
     private val watchdog = object : Runnable {
         override fun run() {
             if (!active) return
+            if (SystemClock.elapsedRealtime() - lastActivityTime > IDLE_STOP_MS) {
+                endSession(R.string.message_idle_stopped)
+                return
+            }
             if (!Settings.canDrawOverlays(this@OverlayService)) {
                 endSession(R.string.message_overlay_required)
                 return
@@ -157,6 +167,8 @@ class OverlayService : Service() {
     }
     private fun startCapture(mediaProjection: MediaProjection) {
         ThrowState.resetSession()
+        dryRunHolding = false
+        lastActivityTime = SystemClock.elapsedRealtime()
         val size = displaySize()
         initialDisplay = size
         val scale = min(1f, 960f / max(size.width, size.height))
@@ -188,7 +200,11 @@ class OverlayService : Service() {
                                 return@post
                             }
                             lastResultTime = now
-                            guidance?.showRing(ring)
+                            if (ring != null) lastActivityTime = delivered
+                            // Display uses the held target so one dropped frame does not
+                            // flicker the marker; throws still use the strict result.
+                            guidance?.showRing(tracker.displayTarget(delivered))
+                            updateDebugHud(analyzer.lastStats)
                             maybeThrow(ring, now)
                         }
                     }
@@ -234,6 +250,10 @@ class OverlayService : Service() {
             return
         }
         val ready = controller.consider(ring, frameTime)
+        if (ThrowState.dryRun) {
+            dryRunStep(ball, ring, ready, frameTime, size)
+            return
+        }
         if (!service.holding && controller.canBeginHold(frameTime)) {
             controller.resetTracking()
             try {
@@ -246,6 +266,7 @@ class OverlayService : Service() {
         }
         if (!service.canContinueHold || !ready || ring == null) return
         val swipe = ThrowPlanner.plan(ring, ball, size.width, size.height, ThrowState.durationMs) ?: return
+        lastActivityTime = SystemClock.elapsedRealtime()
         controller.beginThrow(frameTime)
         try {
             val dispatched = service.throwBall(swipe, frameTime) { success ->
@@ -276,6 +297,8 @@ class OverlayService : Service() {
         }
         button(R.string.calibrate_ball) { startCalibration() }
         autoButton = button(R.string.auto_off) { toggleAuto() }
+        debugButton = button(R.string.debug_off) { toggleDebug() }
+        dryRunButton = button(R.string.dry_run_off) { toggleDryRun() }
         button(R.string.stop) { endSession(R.string.message_stopped) }
         val params = overlayParameters().apply {
             width = WindowManager.LayoutParams.WRAP_CONTENT
@@ -288,6 +311,83 @@ class OverlayService : Service() {
         renderThrowControls()
     }
 
+    private fun toggleDebug() {
+        debugEnabled = !debugEnabled
+        debugButton?.setText(if (debugEnabled) R.string.debug_on else R.string.debug_off)
+        if (debugEnabled) {
+            if (debugHud == null) {
+                val hud = android.widget.TextView(overlayContext).apply {
+                    setTextColor(android.graphics.Color.GREEN)
+                    textSize = 11f
+                    typeface = android.graphics.Typeface.MONOSPACE
+                    setBackgroundColor(0xaa10141d.toInt())
+                    setPadding(12, 12, 12, 12)
+                    importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
+                }
+                debugHud = hud
+                val params = overlayParameters().apply {
+                    width = WindowManager.LayoutParams.WRAP_CONTENT
+                    height = WindowManager.LayoutParams.WRAP_CONTENT
+                    gravity = android.view.Gravity.TOP or android.view.Gravity.START
+                }
+                windowManager.addView(hud, params)
+            }
+            debugHud?.visibility = View.VISIBLE
+        } else {
+            debugHud?.visibility = View.GONE
+        }
+    }
+
+    private fun updateDebugHud(stats: ScreenAnalyzer.Stats) {
+        val hud = debugHud ?: return
+        if (!debugEnabled) return
+        hud.text = DebugHud.format(stats)
+        hud.setTextColor(if (DebugHud.isOverBudget(stats)) android.graphics.Color.RED else android.graphics.Color.GREEN)
+    }
+
+    private fun toggleDryRun() {
+        ThrowState.setDryRun(!ThrowState.dryRun)
+        dryRunButton?.setText(if (ThrowState.dryRun) R.string.dry_run_on else R.string.dry_run_off)
+        Toast.makeText(this,
+            if (ThrowState.dryRun) R.string.dry_run_on else R.string.dry_run_off,
+            Toast.LENGTH_SHORT).show()
+    }
+
+    /**
+     * Item 90: run the Auto decision pipeline without dispatching any gesture.
+     * Logs what would have happened and walks the controller through the same
+     * hold -> stabilize -> throw states as the live path.
+     */
+    private fun dryRunStep(
+        ball: ThrowPlanner.Ball,
+        ring: ScreenAnalyzer.Ring?,
+        ready: Boolean,
+        frameTime: Long,
+        size: DisplaySize,
+    ) {
+        val controller = ThrowState.controller
+        if (!controller.armed) {
+            dryRunHolding = false
+            return
+        }
+        if (!dryRunHolding && controller.canBeginHold(frameTime)) {
+            Log.i(TAG, getString(R.string.dry_run_would_hold, ball.x, ball.y))
+            lastActivityTime = SystemClock.elapsedRealtime()
+            dryRunHolding = true
+            controller.resetTracking()
+            ThrowState.changed()
+            return
+        }
+        if (!dryRunHolding || !ready || ring == null) return
+        val swipe = ThrowPlanner.plan(ring, ball, size.width, size.height, ThrowState.durationMs) ?: return
+        Log.i(TAG, getString(R.string.dry_run_would_throw,
+            swipe.endX / size.width, swipe.endY / size.height, swipe.durationMs))
+        controller.beginThrow(frameTime)
+        controller.finishThrow(true)
+        dryRunHolding = false
+        ThrowState.changed()
+    }
+
     private fun renderThrowControls() {
         autoButton?.text = if (ThrowState.controller.armed)
             getString(if (GestureThrowService.current?.holding == true) R.string.auto_holding else R.string.auto_on,
@@ -297,6 +397,14 @@ class OverlayService : Service() {
 
     private fun toggleAuto() {
         if (ThrowState.controller.armed) { ThrowState.disarm(); return }
+        if (!TosAck.isAcknowledged(this)) {
+            // Bring the app forward so the ban-risk notice can be acknowledged.
+            startActivity(Intent(this, MainActivity::class.java)
+                .putExtra(TosAck.EXTRA_SHOW_TOS, true)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            Toast.makeText(this, R.string.tos_required, Toast.LENGTH_LONG).show()
+            return
+        }
         val service = GestureThrowService.current
         val window = service?.targetWindow()
         val size = initialDisplay
@@ -313,7 +421,7 @@ class OverlayService : Service() {
             else -> null
         }
         if (reason != null) Toast.makeText(this, reason, Toast.LENGTH_LONG).show()
-        else { ThrowState.controller.arm(); ThrowState.changed() }
+        else { lastActivityTime = SystemClock.elapsedRealtime(); ThrowState.controller.arm(); ThrowState.changed() }
     }
 
     private fun startCalibration() {
@@ -337,6 +445,7 @@ class OverlayService : Service() {
         val view = BallCalibrationView(overlayContext) { x, y ->
             val ball = ThrowPlanner.Ball(x / size.width, y / size.height)
             if (ThrowPlanner.validBall(ball) && GestureThrowService.current?.targetWindow()?.target == destination) {
+                lastActivityTime = SystemClock.elapsedRealtime()
                 ThrowState.calibrate(ball, destination)
                 removeCalibration()
                 Toast.makeText(this, R.string.calibrated_ball, Toast.LENGTH_SHORT).show()
@@ -429,6 +538,12 @@ class OverlayService : Service() {
         autoButton = null
         guidance?.let { view -> cleanup { if (view.isAttachedToWindow) windowManager.removeViewImmediate(view) } }
         guidance = null
+        debugHud?.let { view -> cleanup { if (view.isAttachedToWindow) windowManager.removeViewImmediate(view) } }
+        debugHud = null
+        debugButton = null
+        debugEnabled = false
+        dryRunButton = null
+        dryRunHolding = false
         val reader = imageReader
         imageReader = null
         cleanup { reader?.setOnImageAvailableListener(null, null) }
@@ -452,5 +567,7 @@ class OverlayService : Service() {
         private const val CHANNEL_ID = "screen_analysis"
         private const val NOTIFICATION_ID = 1001
         private const val TAG = "OverlayService"
+        /** Item 30: stop forgotten sessions. Keep in sync with message_idle_stopped. */
+        private const val IDLE_STOP_MS = 10 * 60_000L
     }
 }

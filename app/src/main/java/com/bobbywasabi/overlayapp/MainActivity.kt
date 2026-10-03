@@ -13,6 +13,7 @@ import android.provider.Settings
 import android.widget.Toast
 import android.widget.SeekBar
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
@@ -89,6 +90,26 @@ class MainActivity : AppCompatActivity() {
         })
         ThrowState.changes.observe(this) { render() }
         SessionState.status.observe(this) { render() }
+        maybeShowTos()
+    }
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        maybeShowTos()
+    }
+    /** Item 91: ban-risk notice at first run, and on demand before arming Auto. */
+    private fun maybeShowTos() {
+        val demanded = intent.getBooleanExtra(TosAck.EXTRA_SHOW_TOS, false)
+        if (TosAck.isAcknowledged(this) && !demanded) return
+        AlertDialog.Builder(this)
+            .setTitle(R.string.tos_title)
+            .setMessage(R.string.tos_body)
+            .setCancelable(false)
+            .setPositiveButton(R.string.tos_acknowledge) { _, _ ->
+                TosAck.setAcknowledged(this)
+                intent.removeExtra(TosAck.EXTRA_SHOW_TOS)
+            }
+            .show()
     }
     override fun onResume() {
         super.onResume()

@@ -1,6 +1,7 @@
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
+    id("jacoco")
 }
 android {
     namespace = "com.bobbywasabi.overlayapp"
@@ -14,6 +15,32 @@ android {
     }
     buildFeatures { viewBinding = true }
     testOptions { unitTests.isIncludeAndroidResources = true }
+    signingConfigs {
+        // Item 51: production signing from environment (repo secrets in CI).
+        // When the keystore is absent the release build falls back to the
+        // debug key so local builds keep working.
+        create("release") {
+            val keystorePath = System.getenv("THROW_ASSISTANT_KEYSTORE_PATH")
+            if (!keystorePath.isNullOrEmpty()) {
+                storeFile = file(keystorePath)
+                storePassword = System.getenv("THROW_ASSISTANT_STORE_PASSWORD")
+                keyAlias = System.getenv("THROW_ASSISTANT_KEY_ALIAS")
+                keyPassword = System.getenv("THROW_ASSISTANT_KEY_PASSWORD")
+            }
+        }
+    }
+    buildTypes {
+        debug {
+            // JaCoCo coverage for unit tests (item 44).
+            enableUnitTestCoverage = true
+        }
+        release {
+            val keystorePath = System.getenv("THROW_ASSISTANT_KEYSTORE_PATH")
+            if (!keystorePath.isNullOrEmpty() && file(keystorePath).exists()) {
+                signingConfig = signingConfigs.getByName("release")
+            }
+        }
+    }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -36,4 +63,38 @@ dependencies {
     implementation("com.google.android.material:material:1.12.0")
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.robolectric:robolectric:4.14.1")
+}
+
+// Item 44: coverage floor. Run `./gradlew :app:jacocoTestReport` then
+// `./gradlew :app:checkCoverage` in CI. Fails if line coverage < 60%.
+tasks.register("jacocoTestReport", JacocoReport::class) {
+    dependsOn("testDebugUnitTest")
+    reports {
+        xml.required.set(true)
+        html.required.set(true)
+    }
+    val buildDir = layout.buildDirectory.get().asFile
+    val classDirs = files(
+        fileTree("$buildDir/tmp/kotlin-classes/debug") { exclude("**/R.class", "**/R$*.class", "**/BuildConfig*") }
+    )
+    val sourceDirs = files("src/main/java")
+    val execData = files("$buildDir/outputs/unit_test_coverage/debugUnitTest/testDebugUnitTest.exec")
+    classDirectories.setFrom(classDirs)
+    sourceDirectories.setFrom(sourceDirs)
+    executionData.setFrom(execData)
+}
+
+tasks.register("checkCoverage") {
+    dependsOn("jacocoTestReport")
+    doLast {
+        val xml = file("${layout.buildDirectory.get().asFile}/reports/jacoco/jacocoTestReport/jacocoTestReport.xml")
+        require(xml.exists()) { "JaCoCo XML report missing at ${xml.path}" }
+        val text = xml.readText()
+        val line = Regex("<counter type=\"LINE\"[^>]*>").findAll(text).last()
+        val missed = Regex("missed=\"(\d+)\"").find(line.value)!!.groupValues[1].toInt()
+        val covered = Regex("covered=\"(\d+)\"").find(line.value)!!.groupValues[1].toInt()
+        val ratio = covered.toDouble() / (missed + covered)
+        println("Line coverage: ${"%.1f".format(ratio * 100)}% ($covered/${missed + covered})")
+        require(ratio >= 0.60) { "Coverage floor is 60%, measured ${"%.1f".format(ratio * 100)}%" }
+    }
 }
