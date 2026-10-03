@@ -18,7 +18,7 @@ import org.robolectric.util.ReflectionHelpers
 @Config(sdk = [28])
 class GesturePermissionTest {
     private fun enabledService(id: String) = AccessibilityServiceInfo().also {
-        ReflectionHelpers.setField(it, "mId", id)
+        ReflectionHelpers.setField(it, "mComponentName", ComponentName.unflattenFromString(id))
     }
     @Test fun anotherAccessibilityServiceDoesNotGrantThisAppsGesturePermission() {
         val context = RuntimeEnvironment.getApplication()
