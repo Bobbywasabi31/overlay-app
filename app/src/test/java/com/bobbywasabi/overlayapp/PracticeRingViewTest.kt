@@ -43,4 +43,28 @@ class PracticeRingViewTest {
         touch(view, down, down + 350, MotionEvent.ACTION_UP, 540f, 1056f)
         assertEquals(0, throws)
     }
+    @Test fun holdThenSwipeScoresWithoutCountingHoldAsMovement() {
+        val view = PracticeRingView(RuntimeEnvironment.getApplication())
+        view.layout(0, 0, 1080, 2400)
+        var result: PracticeScene.Result? = null
+        view.feedback = { value, _, _, _ -> result = value }
+        val down = SystemClock.uptimeMillis()
+        touch(view, down, down, MotionEvent.ACTION_DOWN, 540f, 2040f)
+        touch(view, down, down + 750, MotionEvent.ACTION_MOVE, 540f, 2040f)
+        touch(view, down, down + 770, MotionEvent.ACTION_MOVE, 540f, 1980f)
+        touch(view, down, down + 1100, MotionEvent.ACTION_UP, 540f, 1056f)
+        assertEquals(PracticeScene.Result.INNER_RING, result)
+        assertEquals(1, view.touches)
+    }
+    @Test fun shortestConfiguredSwipeSurvivesOneFrameOfTouchSampling() {
+        val view = PracticeRingView(RuntimeEnvironment.getApplication())
+        view.layout(0, 0, 1080, 2400)
+        var result: PracticeScene.Result? = null
+        view.feedback = { value, _, _, _ -> result = value }
+        val down = SystemClock.uptimeMillis()
+        touch(view, down, down, MotionEvent.ACTION_DOWN, 540f, 2040f)
+        touch(view, down, down + 766, MotionEvent.ACTION_MOVE, 540f, 1980f)
+        touch(view, down, down + 900, MotionEvent.ACTION_UP, 540f, 1056f)
+        assertEquals(PracticeScene.Result.INNER_RING, result)
+    }
 }

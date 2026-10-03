@@ -17,6 +17,9 @@
         <HorizontalScrollView android:layout_width="match_parent" android:layout_height="wrap_content"
             android:layout_gravity="bottom" android:fillViewport="false">
             <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content" android:orientation="horizontal">
+                <com.google.android.material.button.MaterialButton android:id="@+id/ringModeButton"
+                    android:layout_width="wrap_content" android:layout_height="wrap_content" android:minHeight="48dp"
+                    android:text="@string/demo_ring_hold" android:textAllCaps="false" />
                 <com.google.android.material.button.MaterialButton android:id="@+id/colorButton"
                     android:layout_width="wrap_content" android:layout_height="wrap_content" android:minHeight="48dp"
                     android:text="@string/demo_color" android:textAllCaps="false" />

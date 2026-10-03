@@ -57,4 +57,20 @@ class PracticeSceneTest {
         scene.moving = true
         assertNotEquals(scene.geometry(1080, 2400, 0).targetX, scene.geometry(1080, 2400, 1000).targetX)
     }
+    @Test fun ringAppearsWhileHoldingAndStaysHiddenDuringRecovery() {
+        val scene = PracticeScene()
+        assertFalse(scene.ringVisible(0, false))
+        assertTrue(scene.ringVisible(0, true))
+        scene.ringOnHold = false
+        assertTrue(scene.ringVisible(0, false))
+        scene.submit(1000, 2000, 500f, 1700f, 500f, 880f, 0, 350)
+        assertFalse(scene.ringVisible(400, true))
+    }
+    @Test fun movementTimingDoesNotCountTheStationaryHold() {
+        val scene = PracticeScene()
+        assertEquals(PracticeScene.Result.INNER_RING,
+            scene.submit(1000, 2000, 500f, 1700f, 500f, 880f, 0, 1100, 750))
+        scene.restart(1200)
+        assertNull(scene.submit(1000, 2000, 500f, 1700f, 500f, 880f, 1200, 2500, 1850))
+    }
 }

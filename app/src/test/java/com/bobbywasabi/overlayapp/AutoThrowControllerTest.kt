@@ -82,4 +82,21 @@ class AutoThrowControllerTest {
         controller.disarm()
         assertFalse(controller.consider(ring, 50_000))
     }
+    @Test fun hiddenRingCanBeRevealedOnlyAfterExplicitArming() {
+        assertFalse(controller.canBeginHold(1000))
+        controller.arm()
+        assertTrue(controller.canBeginHold(1000))
+        controller.disarm()
+        assertFalse(controller.canBeginHold(1000))
+    }
+    @Test fun holdingCannotBypassObservedAbsenceOrCooldown() {
+        controller.arm()
+        controller.beginThrow(ready(1000))
+        assertFalse(controller.canBeginHold(8000))
+        controller.finishThrow(true)
+        assertFalse(controller.canBeginHold(8000))
+        disappear(1800)
+        assertFalse(controller.canBeginHold(3050))
+        assertTrue(controller.canBeginHold(4450))
+    }
 }

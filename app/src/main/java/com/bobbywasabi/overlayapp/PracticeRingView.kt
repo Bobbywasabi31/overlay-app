@@ -7,6 +7,7 @@ import android.os.SystemClock
 import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewConfiguration
 import kotlin.math.hypot
 import kotlin.math.max
 
@@ -21,6 +22,8 @@ class PracticeRingView @JvmOverloads constructor(context: Context, attrs: Attrib
     private var fingerX = 0f
     private var fingerY = 0f
     private var downTime = 0L
+    private var movementStart: Long? = null
+    private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
     private var animating = false
     var touches = 0
         private set
@@ -29,6 +32,11 @@ class PracticeRingView @JvmOverloads constructor(context: Context, attrs: Attrib
     fun toggleSmallPale() { scene.smallPale = !scene.smallPale; restart() }
     fun toggleMovement() { scene.moving = !scene.moving; restart() }
     fun nextColor() { scene.colorIndex = (scene.colorIndex + 1) % colors.size; restart() }
+    fun toggleRingMode(): Boolean {
+        scene.ringOnHold = !scene.ringOnHold
+        restart()
+        return scene.ringOnHold
+    }
     fun resume() { animating = true; scene.restart(SystemClock.uptimeMillis()); invalidate() }
     fun pause() { animating = false; dragging = false }
     private fun restart() {
@@ -59,9 +67,11 @@ class PracticeRingView @JvmOverloads constructor(context: Context, attrs: Attrib
             paint.strokeWidth = max(2f, width * 0.003f)
             paint.color = 0xffc4c9cc.toInt()
             canvas.drawCircle(g.targetX, g.targetY, g.targetRadius, paint)
-            paint.strokeWidth = max(2f, width * if (scene.smallPale) 0.003f else 0.006f)
-            paint.color = if (scene.smallPale) 0xff9ed395.toInt() else colors[scene.colorIndex]
-            canvas.drawCircle(g.targetX, g.targetY, g.ringRadius, paint)
+            if (scene.ringVisible(now, dragging)) {
+                paint.strokeWidth = max(2f, width * if (scene.smallPale) 0.003f else 0.006f)
+                paint.color = if (scene.smallPale) 0xff9ed395.toInt() else colors[scene.colorIndex]
+                canvas.drawCircle(g.targetX, g.targetY, g.ringRadius, paint)
+            }
             paint.style = Paint.Style.FILL
             if (dragging) drawBall(canvas, fingerX, fingerY, g.ballRadius)
             else drawBall(canvas, g.ballX, g.ballY, g.ballRadius)
@@ -100,18 +110,24 @@ class PracticeRingView @JvmOverloads constructor(context: Context, attrs: Attrib
             MotionEvent.ACTION_DOWN -> {
                 touches++
                 downTime = now
+                movementStart = null
                 downX = event.x; downY = event.y
                 fingerX = event.x; fingerY = event.y
                 val g = scene.geometry(width, height, now)
                 dragging = scene.ready(now) && hypot(downX - g.ballX, downY - g.ballY) <= g.ballRadius * 1.4f
                 if (dragging) parent?.requestDisallowInterceptTouchEvent(true)
                 feedback?.invoke(null, touches, scene.attempts, scene.innerHits)
+                invalidate()
             }
-            MotionEvent.ACTION_MOVE -> if (dragging) { fingerX = event.x; fingerY = event.y; invalidate() }
+            MotionEvent.ACTION_MOVE -> if (dragging) {
+                if (movementStart == null && hypot(event.x - downX, event.y - downY) > touchSlop) movementStart = now
+                fingerX = event.x; fingerY = event.y; invalidate()
+            }
             MotionEvent.ACTION_UP -> {
                 performClick()
                 if (dragging) {
-                    val result = scene.submit(width, height, downX, downY, event.x, event.y, downTime, now)
+                    val result = scene.submit(width, height, downX, downY, event.x, event.y, downTime, now,
+                        movementStart ?: downTime, if (movementStart != null) 33 else 0)
                     feedback?.invoke(result, touches, scene.attempts, scene.innerHits)
                 }
                 dragging = false

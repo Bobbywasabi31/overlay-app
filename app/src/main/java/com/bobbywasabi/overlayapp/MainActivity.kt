@@ -142,7 +142,7 @@ class MainActivity : AppCompatActivity() {
         binding.startButton.isEnabled = !status.isActive && !requestingStart
         binding.stopButton.isEnabled = status.isActive
         binding.permissionButton.isEnabled = !requestingStart && !status.isActive
-        binding.throwerStatus.setText(if (GestureThrowService.current != null) R.string.thrower_connected else R.string.thrower_disconnected)
+        binding.throwerStatus.setText(GesturePermission.status(this))
         binding.throwDurationLabel.text = getString(R.string.throw_duration, ThrowState.durationMs)
     }
     companion object { private const val REQUESTING_START = "requesting_start" }

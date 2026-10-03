@@ -13,12 +13,15 @@ object ThrowState {
         private set
     var durationMs = 350L
         private set
+    var inputEpoch = 0L
+        private set
     private val mutable = MutableLiveData(0)
     val changes: LiveData<Int> = mutable
 
     fun changed() { mutable.value = (mutable.value ?: 0) + 1 }
-    fun disarm() { controller.disarm(); changed() }
+    fun disarm() { inputEpoch++; controller.disarm(); changed() }
     fun resetSession() {
+        inputEpoch++
         controller.disarm()
         controller = AutoThrowController()
         ball = null
@@ -27,6 +30,7 @@ object ThrowState {
     }
     fun calibrate(value: ThrowPlanner.Ball, destination: ThrowTarget = ThrowTarget.GAME) {
         require(ThrowPlanner.validBall(value))
+        inputEpoch++
         controller.disarm()
         ball = value
         target = destination
@@ -34,6 +38,7 @@ object ThrowState {
     }
     fun setDuration(value: Long) {
         require(value in 150L..600L)
+        inputEpoch++
         controller.disarm()
         durationMs = value
         changed()
