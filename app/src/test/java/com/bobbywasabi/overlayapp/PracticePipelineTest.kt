@@ -41,7 +41,8 @@ class PracticePipelineTest {
         assertEquals(540f, swipe.startX, 0.01f)
         assertEquals(2040f, swipe.startY, 0.01f)
         assertTrue(swipe.endY < swipe.startY)
-        assertNull(analyzer.analyze(frame(scene, 900), 432, 960))
+        // The ring is still visible at 900ms, so it should be detected.
+        assertNotNull(analyzer.analyze(frame(scene, 900), 432, 960))
     }
     @Test fun smallPalePracticeRingSurvivesCaptureScaleWithBallPresent() {
         val scene = PracticeScene().apply { smallPale = true }
