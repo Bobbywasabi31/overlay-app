@@ -2,7 +2,7 @@ package com.bobbywasabi.overlayapp
 
 /** Shared monotonic-time limits for capture, tracking, drawing, and gestures. */
 object CaptureTiming {
-    const val ANALYSIS_INTERVAL_MS = 40L // At most 25 analyses/second; never queue old frames.
+    const val ANALYSIS_INTERVAL_MS = 16L // At most 60 analyses/second; never queue old frames.
     const val STALE_AFTER_MS = 900L
     const val THROW_MAX_AGE_MS = 200L
 
