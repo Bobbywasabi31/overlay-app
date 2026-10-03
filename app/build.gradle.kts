@@ -91,8 +91,8 @@ tasks.register("checkCoverage") {
         require(xml.exists()) { "JaCoCo XML report missing at ${xml.path}" }
         val text = xml.readText()
         val line = Regex("<counter type=\"LINE\"[^>]*>").findAll(text).last()
-        val missed = Regex("missed=\"(\d+)\"").find(line.value)!!.groupValues[1].toInt()
-        val covered = Regex("covered=\"(\d+)\"").find(line.value)!!.groupValues[1].toInt()
+        val missed = Regex("missed=\"(\\d+)\"").find(line.value)!!.groupValues[1].toInt()
+        val covered = Regex("covered=\"(\\d+)\"").find(line.value)!!.groupValues[1].toInt()
         val ratio = covered.toDouble() / (missed + covered)
         println("Line coverage: ${"%.1f".format(ratio * 100)}% ($covered/${missed + covered})")
         require(ratio >= 0.60) { "Coverage floor is 60%, measured ${"%.1f".format(ratio * 100)}%" }
