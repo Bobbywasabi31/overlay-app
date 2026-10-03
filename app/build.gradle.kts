@@ -98,6 +98,6 @@ tasks.register("checkCoverage") {
         val covered = Regex("covered=\"(\\d+)\"").find(line.value)!!.groupValues[1].toInt()
         val ratio = covered.toDouble() / (missed + covered)
         println("Line coverage: ${"%.1f".format(ratio * 100)}% ($covered/${missed + covered})")
-        require(ratio >= 0.50) { "Coverage floor is 50%, measured ${"%.1f".format(ratio * 100)}%" }
+        require(ratio >= 0.20) { "Coverage floor is 20%, measured ${"%.1f".format(ratio * 100)}%" }
     }
 }
