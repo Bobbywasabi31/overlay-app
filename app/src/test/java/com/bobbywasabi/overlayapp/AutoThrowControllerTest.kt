@@ -8,8 +8,8 @@ class AutoThrowControllerTest {
     private val ring = ScreenAnalyzer.Ring(0.5f, 0.45f, 0.04f, 0.9f)
 
     private fun ready(start: Long): Long {
-        for (i in 0..5) assertFalse(controller.consider(ring, start + i * 67))
-        val time = start + 402
+        for (i in 0..3) assertFalse(controller.consider(ring, start + i * 67))
+        val time = start + 268
         assertTrue(controller.consider(ring, time))
         return time
     }
@@ -34,8 +34,8 @@ class AutoThrowControllerTest {
         controller.beginThrow(ready(1000))
         controller.finishThrow(true)
         disappear(1800)
-        for (i in 0..13) assertFalse(controller.consider(ring, 3050 + i * 100L))
-        assertTrue(controller.consider(ring, 4450))
+        for (i in 0..12) assertFalse(controller.consider(ring, 3050 + i * 100L))
+        assertTrue(controller.consider(ring, 4350))
     }
     @Test fun captureStallDoesNotCountAsRingDisappearance() {
         controller.arm()

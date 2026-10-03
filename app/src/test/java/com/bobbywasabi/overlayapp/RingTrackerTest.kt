@@ -10,12 +10,16 @@ class RingTrackerTest {
         assertNull(tracker.update(ring))
         assertNotNull(tracker.update(ring))
     }
-    @Test fun missingFrameClearsAndRequiresReconfirmation() {
-        tracker.update(ring)
-        tracker.update(ring)
-        assertNull(tracker.update(null))
-        assertNull(tracker.update(ring))
-        assertNotNull(tracker.update(ring))
+    @Test fun briefMissHoldsLastConfirmedThenRequiresReconfirmation() {
+        tracker.update(ring, 1000)
+        tracker.update(ring, 1067)
+        // Brief flicker: the last confirmed ring is held.
+        assertNotNull(tracker.update(null, 1134))
+        // After the hold expires, nulls return null again.
+        assertNull(tracker.update(null, 1400))
+        // Reconfirmation needs two fresh frames.
+        assertNull(tracker.update(ring, 1467))
+        assertNotNull(tracker.update(ring, 1534))
     }
     @Test fun abruptTargetJumpRequiresReconfirmation() {
         tracker.update(ring)
@@ -47,7 +51,8 @@ class RingTrackerTest {
     @Test fun displayTargetSurvivesSingleMissedFrame() {
         tracker.update(ring, 1000)
         tracker.update(ring, 1067)
-        assertNull(tracker.update(null, 1134))
+        // update() holds the confirmed ring through brief flicker now.
+        assertNotNull(tracker.update(null, 1134))
         assertNotNull(tracker.displayTarget(1200))
         assertNull(tracker.displayTarget(1300))
     }

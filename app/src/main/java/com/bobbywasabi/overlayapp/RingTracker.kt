@@ -3,23 +3,31 @@ package com.bobbywasabi.overlayapp
 import kotlin.math.abs
 import kotlin.math.hypot
 
-/** Require two consistent frames and clear immediately on a miss. */
+/** Require two consistent frames; tolerate brief drops so flicker does not break a track. */
 class RingTracker {
     private var previous: ScreenAnalyzer.Ring? = null
     private var previousTime: Long? = null
     private var displayHold: ScreenAnalyzer.Ring? = null
     private var displayHoldTime: Long = 0L
+    private var lastConfirmed: ScreenAnalyzer.Ring? = null
+    private var lastConfirmedTime: Long = 0L
     fun update(candidate: ScreenAnalyzer.Ring?, nowMs: Long = System.nanoTime() / 1_000_000): ScreenAnalyzer.Ring? {
         val time = previousTime
         if (time != null && !CaptureTiming.isFresh(time, nowMs)) previous = null
         val old = previous
         previous = candidate
         previousTime = nowMs
-        if (candidate == null || old == null) return null
+        if (candidate == null || old == null) {
+            // Brief flicker: hold the last confirmed ring instead of dropping the track.
+            val held = lastConfirmed
+            return if (held != null && nowMs - lastConfirmedTime <= FLICKER_HOLD_MS) held else null
+        }
         if (hypot(candidate.x - old.x, candidate.y - old.y) > 0.08f || abs(candidate.radius - old.radius) > 0.07f) return null
         val confirmed = candidate.copy(x = old.x * 0.35f + candidate.x * 0.65f, y = old.y * 0.35f + candidate.y * 0.65f)
         displayHold = confirmed
         displayHoldTime = nowMs
+        lastConfirmed = confirmed
+        lastConfirmedTime = nowMs
         return confirmed
     }
 
@@ -35,5 +43,7 @@ class RingTracker {
 
     companion object {
         const val DISPLAY_HOLD_MS = 150L
+        /** How long a confirmed ring survives analyzer flicker. */
+        const val FLICKER_HOLD_MS = 250L
     }
 }

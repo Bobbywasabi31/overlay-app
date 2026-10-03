@@ -52,8 +52,10 @@ class AutoThrowController {
         previousTime = nowMs
         if (ring == null) {
             previous = null
-            stableSince = null
+            // Tolerate brief flicker: only drop the stability timer if the ring
+            // stays absent past the grace period.
             val absent = absentSince ?: nowMs.also { absentSince = it }
+            if (nowMs - absent >= NULL_GRACE_MS) stableSince = null
             if (nowMs - absent >= CLEAR_MS) waitingForClear = false
             return false
         }
@@ -101,10 +103,12 @@ class AutoThrowController {
     }
 
     companion object {
-        const val STABLE_MS = 350L
+        const val STABLE_MS = 250L
         const val CLEAR_MS = 1200L
         const val COOLDOWN_MS = 3000L
         const val MAX_THROWS = 5
+        /** Brief analyzer flicker does not reset the stability timer. */
+        const val NULL_GRACE_MS = 200L
         /** #4: rings at least this confident are tracked. */
         const val TRACK_CONFIDENCE = 0.5f
         /** #4: only anchors at least this confident may trigger a throw. */
