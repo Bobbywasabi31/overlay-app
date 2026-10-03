@@ -23,6 +23,7 @@ class ThrowSetupTest {
         ThrowState.resetSession()
         val gesture = Robolectric.buildService(GestureThrowService::class.java).create()
         val capture = Robolectric.buildService(OverlayService::class.java).create()
+        TosAck.setAcknowledged(capture.get())
         try {
             ReflectionHelpers.callInstanceMethod<Any>(gesture.get(), "onServiceConnected")
             PracticeSession.resume()
@@ -37,6 +38,7 @@ class ThrowSetupTest {
         ThrowState.resetSession()
         val gesture = Robolectric.buildService(GestureThrowService::class.java).create()
         val capture = Robolectric.buildService(OverlayService::class.java).create()
+        TosAck.setAcknowledged(capture.get())
         try {
             ReflectionHelpers.callInstanceMethod<Any>(gesture.get(), "onServiceConnected")
             PracticeSession.pause()
@@ -49,11 +51,27 @@ class ThrowSetupTest {
             assertFalse(ThrowState.controller.armed)
         } finally { capture.destroy(); gesture.destroy() }
     }
+    @Test fun autoDoesNotArmBeforeTosAcknowledgement() {
+        ThrowState.resetSession()
+        val gesture = Robolectric.buildService(GestureThrowService::class.java).create()
+        val capture = Robolectric.buildService(OverlayService::class.java).create()
+        try {
+            ReflectionHelpers.callInstanceMethod<Any>(gesture.get(), "onServiceConnected")
+            PracticeSession.resume()
+            focusGestureWindow(gesture.get(), gesture.get().packageName)
+            display(capture.get())
+            assertFalse(TosAck.isAcknowledged(capture.get()))
+            ReflectionHelpers.callInstanceMethod<Any>(capture.get(), "toggleAuto")
+            assertEquals(capture.get().getString(R.string.tos_required), ShadowToast.getTextOfLatestToast())
+            assertFalse(ThrowState.controller.armed)
+        } finally { capture.destroy(); gesture.destroy(); PracticeSession.pause() }
+    }
     @Config(sdk = [24])
     @Test fun androidSevenExplainsThatAutomaticHoldingNeedsANewerApi() {
         ThrowState.resetSession()
         val gesture = Robolectric.buildService(GestureThrowService::class.java).create()
         val capture = Robolectric.buildService(OverlayService::class.java).create()
+        TosAck.setAcknowledged(capture.get())
         try {
             ReflectionHelpers.callInstanceMethod<Any>(gesture.get(), "onServiceConnected")
             display(capture.get())
