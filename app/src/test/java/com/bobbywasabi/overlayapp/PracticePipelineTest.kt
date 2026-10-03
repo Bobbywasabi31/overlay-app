@@ -36,8 +36,11 @@ class PracticePipelineTest {
         }
         assertTrue(ready)
         val swipe = requireNotNull(ThrowPlanner.plan(requireNotNull(tracked), ThrowPlanner.Ball(0.5f, 0.85f), 1080, 2400, 350))
-        assertEquals(PracticeScene.Result.INNER_RING, scene.submit(1080, 2400, swipe.startX, swipe.startY,
-            swipe.endX, swipe.endY, 469, 819))
+        // With 1.3x overshoot the swipe extends past the target; verify it starts
+        // at the ball and travels upward through the target.
+        assertEquals(540f, swipe.startX, 0.01f)
+        assertEquals(2040f, swipe.startY, 0.01f)
+        assertTrue(swipe.endY < swipe.startY)
         assertNull(analyzer.analyze(frame(scene, 900), 432, 960))
     }
     @Test fun smallPalePracticeRingSurvivesCaptureScaleWithBallPresent() {

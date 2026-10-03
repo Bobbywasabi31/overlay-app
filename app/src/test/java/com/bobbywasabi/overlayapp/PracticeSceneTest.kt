@@ -13,8 +13,11 @@ class PracticeSceneTest {
             val swipe = requireNotNull(ThrowPlanner.plan(ring, ball, w, h, 350))
             assertEquals(g.ballX, swipe.startX, 0.01f)
             assertEquals(g.ballY, swipe.startY, 0.01f)
-            assertEquals(g.targetX, swipe.endX, 0.01f)
-            assertEquals(g.targetY, swipe.endY, 0.01f)
+            // 1.3x overshoot past the target, clamped to the screen.
+            val bx = g.ballX / w; val by = g.ballY / h
+            val rx = g.targetX / w; val ry = g.targetY / h
+            assertEquals((bx + (rx - bx) * 1.3f).coerceIn(0f, 1f) * w, swipe.endX, 0.01f)
+            assertEquals((by + (ry - by) * 1.3f).coerceIn(0f, 1f) * h, swipe.endY, 0.01f)
         }
     }
     @Test fun scoresRingSizeAtReleaseTime() {

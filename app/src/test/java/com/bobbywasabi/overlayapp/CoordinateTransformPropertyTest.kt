@@ -39,8 +39,11 @@ class CoordinateTransformPropertyTest {
             val swipe = requireNotNull(ThrowPlanner.plan(ring, ball, width, height, 350))
             assertEquals(ball.x, swipe.startX / width, 1e-4f)
             assertEquals(ball.y, swipe.startY / height, 1e-4f)
-            assertEquals(ring.x, swipe.endX / width, 1e-4f)
-            assertEquals(ring.y, swipe.endY / height, 1e-4f)
+            // 1.3x overshoot past the ring, clamped to the screen.
+            val expectedEndX = (ball.x + (ring.x - ball.x) * 1.3f).coerceIn(0f, 1f)
+            val expectedEndY = (ball.y + (ring.y - ball.y) * 1.3f).coerceIn(0f, 1f)
+            assertEquals(expectedEndX, swipe.endX / width, 1e-4f)
+            assertEquals(expectedEndY, swipe.endY / height, 1e-4f)
         }
     }
 
