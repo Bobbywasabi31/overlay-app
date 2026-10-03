@@ -81,8 +81,10 @@ class AutoThrowController {
         val stable = stableSince ?: nowMs.also { stableSince = it }
         val last = lastThrow
         // #4 staged gate: track loosely, but throw only while confidence is high.
+        // Target the excellent ring: wait for it to shrink to excellent size.
         return !waitingForClear && nowMs - stable >= STABLE_MS &&
             throwConfidence >= THROW_CONFIDENCE &&
+            ring.radius <= EXCELLENT_RADIUS_MAX &&
             (last == null || nowMs - last >= COOLDOWN_MS)
     }
 
@@ -107,6 +109,8 @@ class AutoThrowController {
         const val CLEAR_MS = 1200L
         const val COOLDOWN_MS = 3000L
         const val MAX_THROWS = 5
+        /** Only throw when the ring has shrunk to excellent size (or smaller). */
+        const val EXCELLENT_RADIUS_MAX = 0.05f
         /** Brief analyzer flicker does not reset the stability timer. */
         const val NULL_GRACE_MS = 200L
         /** #4: rings at least this confident are tracked. */
