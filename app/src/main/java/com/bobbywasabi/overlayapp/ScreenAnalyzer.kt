@@ -182,7 +182,7 @@ class ScreenAnalyzer {
             val radius = sum / tail
             val relativeError = sqrt(max(0.0, sumSquares / tail - radius * radius)) / radius
             val coverage = Integer.bitCount(sectors) / 24f
-            if (relativeError > 0.10 || coverage < 0.83f) { reject("shape"); continue }
+            if (relativeError > 0.10 || coverage < 0.75f) { reject("shape"); continue }
             // Thin-ring verification: a solid disk's edge also high-passes as a
             // circle, so require the interior to be clearly less saturated than
             // the ring itself (relative, so a ring around a Pokemon still passes).
@@ -247,8 +247,8 @@ class ScreenAnalyzer {
         const val REGION_Y1 = 0.82f
         /** Local-contrast mask tuning (validated against a real encounter shot). */
         const val BLOCK = 4
-        const val HP_SATURATION = 35
-        const val MIN_BRIGHTNESS = 90
+        const val HP_SATURATION = 25
+        const val MIN_BRIGHTNESS = 75
     }
 
     /**

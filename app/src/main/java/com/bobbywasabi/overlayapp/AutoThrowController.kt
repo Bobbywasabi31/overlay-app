@@ -106,7 +106,7 @@ class AutoThrowController {
         const val COOLDOWN_MS = 3000L
         const val MAX_THROWS = 5
         /** #4: rings at least this confident are tracked. */
-        const val TRACK_CONFIDENCE = 0.6f
+        const val TRACK_CONFIDENCE = 0.5f
         /** #4: only anchors at least this confident may trigger a throw. */
         const val THROW_CONFIDENCE = 0.75f
         /** #5: below this, a borderline frame drops the track instead of holding it. */
