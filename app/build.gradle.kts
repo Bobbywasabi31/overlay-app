@@ -1,6 +1,6 @@
 plugins {
-    id("com.android.application")
-    id("org.jetbrains.kotlin.android")
+    alias(libs.plugins.android.application)
+    alias(libs.plugins.kotlin.android)
     id("jacoco")
 }
 android {
@@ -46,6 +46,9 @@ android {
     kotlinOptions { jvmTarget = "17" }
     lint {
         warningsAsErrors = true
+        // Item 58: baseline keeps pre-existing warnings from failing the build;
+        // new warnings still fail because warningsAsErrors stays true.
+        baseline = file("lint-baseline.xml")
         // Keep this prototype on API 35 until newer target behavior is device-tested.
         // The time-dependent SDK upgrade advisory is not a code-correctness gate.
         disable += "OldTargetApi"
@@ -54,13 +57,13 @@ android {
     }
 }
 dependencies {
-    implementation("androidx.core:core-ktx:1.15.0")
-    implementation("androidx.activity:activity-ktx:1.9.3")
-    implementation("androidx.appcompat:appcompat:1.7.0")
-    implementation("androidx.lifecycle:lifecycle-livedata-ktx:2.8.7")
-    implementation("com.google.android.material:material:1.12.0")
-    testImplementation("junit:junit:4.13.2")
-    testImplementation("org.robolectric:robolectric:4.14.1")
+    implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.activity.ktx)
+    implementation(libs.androidx.appcompat)
+    implementation(libs.androidx.lifecycle.livedata.ktx)
+    implementation(libs.material)
+    testImplementation(libs.junit)
+    testImplementation(libs.robolectric)
 }
 
 // Item 44: coverage floor. The JaCoCo agent runs on the unit-test task;

@@ -50,6 +50,28 @@ class AutoThrowControllerTest {
         for (i in 0..10) assertFalse(controller.consider(ring.copy(x = 0.4f + i * 0.01f), 1000 + i * 67L))
         assertFalse(controller.consider(ring.copy(x = 0.7f), 1750))
     }
+    @Test fun mediumConfidenceTracksButCannotThrow() {
+        controller.arm()
+        for (i in 0..7) assertFalse(controller.consider(ring.copy(confidence = 0.65f), 1000 + i * 67L))
+        // Confidence recovers on the same stable ring: no re-anchor needed to throw.
+        assertTrue(controller.consider(ring.copy(confidence = 0.8f), 1600))
+    }
+    @Test fun borderlineConfidenceHoldsTheStabilityTimer() {
+        controller.arm()
+        assertFalse(controller.consider(ring, 1000))
+        assertFalse(controller.consider(ring, 1100))
+        assertFalse(controller.consider(ring.copy(confidence = 0.5f), 1200))
+        assertTrue(controller.consider(ring, 1400))
+    }
+    @Test fun weakFrameDropsTheTrack() {
+        controller.arm()
+        assertFalse(controller.consider(ring, 1000))
+        assertFalse(controller.consider(ring, 1100))
+        assertFalse(controller.consider(ring.copy(confidence = 0.4f), 1200))
+        assertFalse(controller.consider(ring, 1300))
+        assertFalse(controller.consider(ring, 1400))
+        assertTrue(controller.consider(ring, 1700))
+    }
     @Test fun lowConfidenceCannotCountTowardConfirmation() {
         controller.arm()
         assertFalse(controller.consider(ring.copy(confidence = 0.4f), 1000))

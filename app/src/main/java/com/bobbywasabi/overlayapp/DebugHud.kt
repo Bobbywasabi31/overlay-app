@@ -2,12 +2,19 @@ package com.bobbywasabi.overlayapp
 
 /** Pure formatting for the debug HUD (items 21, 85); no Android dependencies. */
 object DebugHud {
-    fun format(stats: ScreenAnalyzer.Stats, budgetMs: Long = ScreenAnalyzer.ANALYSIS_BUDGET_MS): String {
+    fun format(
+        stats: ScreenAnalyzer.Stats,
+        budgetMs: Long = ScreenAnalyzer.ANALYSIS_BUDGET_MS,
+        droppedFrames: Int = 0,
+        staleFrames: Int = 0,
+    ): String {
         val sb = StringBuilder()
         sb.append("analysis ").append(stats.analysisMs).append("ms")
         if (stats.analysisMs > budgetMs) sb.append(" OVER BUDGET")
         sb.append('\n')
-        sb.append("candidates ").append(stats.candidates).append('\n')
+        sb.append("candidates ").append(stats.candidates)
+            .append(" dropped ").append(droppedFrames)
+            .append(" stale ").append(staleFrames).append('\n')
         if (stats.rejected.isEmpty()) {
             sb.append("rejected none")
         } else {

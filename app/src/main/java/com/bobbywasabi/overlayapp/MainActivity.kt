@@ -90,12 +90,17 @@ class MainActivity : AppCompatActivity() {
         })
         ThrowState.changes.observe(this) { render() }
         SessionState.status.observe(this) { render() }
+        binding.killSwitchButton.setOnClickListener {
+            if (ThrowState.killed) ThrowState.revive() else ThrowState.kill()
+        }
         maybeShowTos()
+        maybeShowAccessibilityDisclosure()
     }
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
         maybeShowTos()
+        maybeShowAccessibilityDisclosure()
     }
     /** Item 91: ban-risk notice at first run, and on demand before arming Auto. */
     private fun maybeShowTos() {
@@ -109,6 +114,30 @@ class MainActivity : AppCompatActivity() {
                 TosAck.setAcknowledged(this)
                 intent.removeExtra(TosAck.EXTRA_SHOW_TOS)
             }
+            .setNeutralButton(R.string.tos_read_terms) { _, _ ->
+                try {
+                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://nianticlabs.com/terms")))
+                } catch (_: ActivityNotFoundException) {
+                    // No browser; the notice itself carries the warning.
+                }
+            }
+            .show()
+    }
+    /** Item 77: disclose the accessibility service's role before the system prompt. */
+    private fun maybeShowAccessibilityDisclosure() {
+        if (!intent.getBooleanExtra(EXTRA_SHOW_ACCESSIBILITY, false)) return
+        intent.removeExtra(EXTRA_SHOW_ACCESSIBILITY)
+        AlertDialog.Builder(this)
+            .setTitle(R.string.accessibility_title)
+            .setMessage(R.string.accessibility_body)
+            .setPositiveButton(R.string.open_settings) { _, _ ->
+                try {
+                    startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                } catch (_: ActivityNotFoundException) {
+                    Toast.makeText(this, R.string.thrower_settings_unavailable, Toast.LENGTH_LONG).show()
+                }
+            }
+            .setNegativeButton(R.string.not_now, null)
             .show()
     }
     override fun onResume() {
@@ -165,6 +194,10 @@ class MainActivity : AppCompatActivity() {
         binding.permissionButton.isEnabled = !requestingStart && !status.isActive
         binding.throwerStatus.setText(GesturePermission.status(this))
         binding.throwDurationLabel.text = getString(R.string.throw_duration, ThrowState.durationMs)
+        binding.killSwitchButton.setText(if (ThrowState.killed) R.string.kill_switch_on else R.string.kill_switch_off)
     }
-    companion object { private const val REQUESTING_START = "requesting_start" }
+    companion object {
+        private const val REQUESTING_START = "requesting_start"
+        const val EXTRA_SHOW_ACCESSIBILITY = "show_accessibility"
+    }
 }

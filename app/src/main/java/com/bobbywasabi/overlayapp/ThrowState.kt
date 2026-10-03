@@ -11,9 +11,13 @@ object ThrowState {
         private set
     var target: ThrowTarget? = null
         private set
+    var calibrationBounds: android.graphics.Rect? = null
+        private set
     var durationMs = 350L
         private set
     var dryRun = false
+        private set
+    var killed = false
         private set
     var inputEpoch = 0L
         private set
@@ -28,14 +32,31 @@ object ThrowState {
         controller = AutoThrowController()
         ball = null
         target = null
+        calibrationBounds = null
         changed()
     }
-    fun calibrate(value: ThrowPlanner.Ball, destination: ThrowTarget = ThrowTarget.GAME) {
+    fun calibrate(
+        value: ThrowPlanner.Ball,
+        destination: ThrowTarget = ThrowTarget.GAME,
+        bounds: android.graphics.Rect? = null,
+    ) {
         require(ThrowPlanner.validBall(value))
         inputEpoch++
         controller.disarm()
         ball = value
         target = destination
+        calibrationBounds = bounds?.let { android.graphics.Rect(it) }
+        changed()
+    }
+    /** #82: kill switch. Latches until explicitly revived; survives session resets. */
+    fun kill() {
+        killed = true
+        disarm()
+        changed()
+    }
+    fun revive() {
+        if (!killed) return
+        killed = false
         changed()
     }
     /** Dry-run exercises the full Auto pipeline but sends no gestures. */

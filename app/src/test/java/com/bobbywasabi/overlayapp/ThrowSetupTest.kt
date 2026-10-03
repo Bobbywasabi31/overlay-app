@@ -17,7 +17,7 @@ class ThrowSetupTest {
         val constructor = type.getDeclaredConstructor(Int::class.javaPrimitiveType, Int::class.javaPrimitiveType, Int::class.javaPrimitiveType)
         constructor.isAccessible = true
         ReflectionHelpers.setField(service, "initialDisplay", constructor.newInstance(1080, 2400, 0))
-        ReflectionHelpers.setField(service, "active", true)
+        service.setPhaseForTest(OverlayService.CapturePhase.RUNNING)
     }
     @Test fun missingBallCalibrationDoesNotReportMissingGesturePermission() {
         ThrowState.resetSession()

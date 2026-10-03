@@ -45,6 +45,9 @@
         <com.google.android.material.button.MaterialButton android:id="@+id/throwerPermissionButton"
             style="@style/Widget.MaterialComponents.Button.OutlinedButton" android:layout_width="match_parent"
             android:layout_height="wrap_content" android:minHeight="52dp" android:text="@string/thrower_permission" android:textAllCaps="false" />
+        <com.google.android.material.button.MaterialButton android:id="@+id/killSwitchButton"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton" android:layout_width="match_parent"
+            android:layout_height="wrap_content" android:layout_marginTop="8dp" android:minHeight="52dp" android:text="@string/kill_switch_off" android:textAllCaps="false" />
         <TextView android:id="@+id/throwDurationLabel" style="@style/BodyText" android:text="@string/throw_duration_default" />
         <SeekBar android:id="@+id/throwDuration" android:layout_width="match_parent" android:layout_height="48dp"
             android:max="450" android:contentDescription="@string/throw_duration_description" />

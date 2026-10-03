@@ -15,6 +15,7 @@ class AutoThrowController {
     private var previousTime: Long? = null
     private var stableSince: Long? = null
     private var absentSince: Long? = null
+    private var throwConfidence = 0f
     private var waitingForClear = false
     private var lastThrow: Long? = null
 
@@ -37,6 +38,7 @@ class AutoThrowController {
         previousTime = null
         stableSince = null
         absentSince = null
+        throwConfidence = 0f
     }
 
     /** Holding reveals a hidden ring, but cannot bypass repeat and cooldown checks. */
@@ -57,11 +59,16 @@ class AutoThrowController {
         }
         absentSince = null
         val old = previous
-        if (ring.confidence !in 0.7f..1f) {
+        val confident = ring.confidence >= TRACK_CONFIDENCE
+        // #5 hysteresis: once a track is acquired, a borderline frame holds the
+        // stability timer instead of flapping it; only a weak frame drops it.
+        if (!confident && !(ring.confidence >= DROP_CONFIDENCE && stableSince != null)) {
             previous = null
             stableSince = null
             return false
         }
+        if (!confident) return false
+        throwConfidence = ring.confidence
         // Compare against the stability anchor, not the last frame: slow drift is still motion.
         if (old == null ||
             hypot(ring.x - old.x, ring.y - old.y) > 0.025f || abs(ring.radius - old.radius) > 0.025f) {
@@ -71,7 +78,9 @@ class AutoThrowController {
         }
         val stable = stableSince ?: nowMs.also { stableSince = it }
         val last = lastThrow
+        // #4 staged gate: track loosely, but throw only while confidence is high.
         return !waitingForClear && nowMs - stable >= STABLE_MS &&
+            throwConfidence >= THROW_CONFIDENCE &&
             (last == null || nowMs - last >= COOLDOWN_MS)
     }
 
@@ -96,5 +105,11 @@ class AutoThrowController {
         const val CLEAR_MS = 1200L
         const val COOLDOWN_MS = 3000L
         const val MAX_THROWS = 5
+        /** #4: rings at least this confident are tracked. */
+        const val TRACK_CONFIDENCE = 0.6f
+        /** #4: only anchors at least this confident may trigger a throw. */
+        const val THROW_CONFIDENCE = 0.75f
+        /** #5: below this, a borderline frame drops the track instead of holding it. */
+        const val DROP_CONFIDENCE = 0.45f
     }
 }

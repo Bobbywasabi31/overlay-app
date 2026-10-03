@@ -14,6 +14,7 @@ import android.content.IntentFilter
 import android.content.pm.ServiceInfo
 import android.graphics.PixelFormat
 import android.graphics.Point
+import android.graphics.Rect
 import android.hardware.display.DisplayManager
 import android.hardware.display.VirtualDisplay
 import android.hardware.input.InputManager
@@ -40,6 +41,7 @@ import androidx.lifecycle.Observer
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.IntentCompat
+import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -60,15 +62,33 @@ class OverlayService : Service() {
     private var debugButton: Button? = null
     private var dryRunButton: Button? = null
     private var dryRunHolding = false
+    private var accessibilityDisclosureShown = false
     private var debugHud: android.widget.TextView? = null
     private var debugEnabled = false
     private var calibration: BallCalibrationView? = null
     private var initialDisplay: DisplaySize? = null
     private var displayListenerRegistered = false
     private var screenOffReceiverRegistered = false
-    @Volatile private var active = false
+    /** #34: explicit session lifecycle. All transitions funnel through [setPhase]. */
+    internal enum class CapturePhase { IDLE, STARTING, RUNNING, STOPPING }
+    @Volatile private var capturePhase = CapturePhase.IDLE
+    private val active: Boolean get() = capturePhase == CapturePhase.RUNNING
+    private fun setPhase(next: CapturePhase) {
+        val prev = capturePhase
+        val legal = when (prev) {
+            CapturePhase.IDLE -> next == CapturePhase.STARTING || next == CapturePhase.STOPPING
+            CapturePhase.STARTING -> next == CapturePhase.RUNNING || next == CapturePhase.STOPPING
+            CapturePhase.RUNNING -> next == CapturePhase.STOPPING
+            CapturePhase.STOPPING -> next == CapturePhase.IDLE
+        }
+        if (!legal) Log.w(TAG, "Unexpected session transition $prev -> $next")
+        capturePhase = next
+    }
+    internal fun setPhaseForTest(next: CapturePhase) { capturePhase = next }
     private var lastResultTime = 0L
     private var lastActivityTime = 0L
+    private var droppedFrames = 0
+    private var staleFrames = 0
     private var terminating = false
     private var terminalStatus: SessionState.Status? = null
     private val throwObserver = Observer<Int> { renderThrowControls() }
@@ -156,6 +176,7 @@ class OverlayService : Service() {
             val mediaProjection = getSystemService(MediaProjectionManager::class.java).getMediaProjection(resultCode, resultData)
             projection = mediaProjection
             mediaProjection.registerCallback(projectionCallback, mainHandler)
+            setPhase(CapturePhase.STARTING)
             startCapture(mediaProjection)
             SessionState.update(SessionState.Phase.RUNNING, R.string.message_running)
         } catch (error: RuntimeException) {
@@ -169,6 +190,8 @@ class OverlayService : Service() {
         ThrowState.resetSession()
         dryRunHolding = false
         lastActivityTime = SystemClock.elapsedRealtime()
+        droppedFrames = 0
+        staleFrames = 0
         val size = displaySize()
         initialDisplay = size
         val scale = min(1f, 960f / max(size.width, size.height))
@@ -183,7 +206,10 @@ class OverlayService : Service() {
         reader.setOnImageAvailableListener({ source ->
             if (!active) return@setOnImageAvailableListener
             try {
-                val image = source.acquireLatestImage() ?: return@setOnImageAvailableListener
+                val image = source.acquireLatestImage() ?: run {
+                    droppedFrames++
+                    return@setOnImageAvailableListener
+                }
                 image.use {
                     val now = SystemClock.elapsedRealtime()
                     if (now - lastAnalysis < CaptureTiming.ANALYSIS_INTERVAL_MS) return@use
@@ -195,6 +221,7 @@ class OverlayService : Service() {
                         if (active) {
                             val delivered = SystemClock.elapsedRealtime()
                             if (!CaptureTiming.isFresh(now, delivered)) {
+                                staleFrames++
                                 guidance?.showRing(null)
                                 ThrowState.controller.resetTracking()
                                 return@post
@@ -219,7 +246,7 @@ class OverlayService : Service() {
             windowManager.addView(view, overlayParameters())
         }
         createThrowControls()
-        active = true
+        setPhase(CapturePhase.RUNNING)
         virtualDisplay = mediaProjection.createVirtualDisplay(
             "ThrowAssistantCapture", width, height, resources.configuration.densityDpi,
             DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR, reader.surface, null, worker,
@@ -232,6 +259,7 @@ class OverlayService : Service() {
     }
 
     private fun maybeThrow(ring: ScreenAnalyzer.Ring?, frameTime: Long) {
+        if (ThrowState.killed) return
         val controller = ThrowState.controller
         if (!controller.armed || calibration != null) return
         if (!CaptureTiming.isFreshForThrow(frameTime, SystemClock.elapsedRealtime())) {
@@ -246,6 +274,14 @@ class OverlayService : Service() {
         // Split-screen and unknown foregrounds cannot use a full-display calibrated swipe.
         if (ball == null || window == null || bounds == null || window.target != ThrowState.target ||
             bounds.width() < size.width * 0.9 || bounds.height() < size.height * 0.85) {
+            ThrowState.disarm()
+            return
+        }
+        // #8: if the window moved or resized since calibration, the calibrated
+        // ball position is stale; ask for recalibration instead of throwing blind.
+        val calibratedBounds = ThrowState.calibrationBounds
+        if (calibratedBounds != null && windowBoundsChanged(calibratedBounds, bounds)) {
+            Toast.makeText(this, R.string.auto_recalibrate, Toast.LENGTH_LONG).show()
             ThrowState.disarm()
             return
         }
@@ -265,9 +301,23 @@ class OverlayService : Service() {
             return
         }
         if (!service.canContinueHold || !ready || ring == null) return
-        val swipe = ThrowPlanner.plan(ring, ball, size.width, size.height, ThrowState.durationMs) ?: return
+        val planned = ThrowPlanner.plan(ring, ball, size.width, size.height, ThrowState.durationMs) ?: return
+        // #7: never let a swipe leave the game window.
+        val swipe = planned.copy(
+            startX = planned.startX.coerceIn(bounds.left.toFloat(), bounds.right.toFloat()),
+            startY = planned.startY.coerceIn(bounds.top.toFloat(), bounds.bottom.toFloat()),
+            endX = planned.endX.coerceIn(bounds.left.toFloat(), bounds.right.toFloat()),
+            endY = planned.endY.coerceIn(bounds.top.toFloat(), bounds.bottom.toFloat()),
+        )
         lastActivityTime = SystemClock.elapsedRealtime()
         controller.beginThrow(frameTime)
+        // #9: the ring must still be fresh at dispatch time, not just at plan time.
+        if (!CaptureTiming.isFreshForThrow(frameTime, SystemClock.elapsedRealtime())) {
+            Log.w(TAG, "Throw aborted: ring went stale before dispatch")
+            controller.finishThrow(false)
+            ThrowState.changed()
+            return
+        }
         try {
             val dispatched = service.throwBall(swipe, frameTime) { success ->
                 controller.finishThrow(success)
@@ -280,6 +330,15 @@ class OverlayService : Service() {
             controller.finishThrow(false)
             ThrowState.changed()
         }
+    }
+
+    /** #8: the calibration is stale if the window moved or resized materially. */
+    private fun windowBoundsChanged(old: Rect, new: Rect): Boolean {
+        val scale = old.width().coerceAtLeast(1).toFloat()
+        return abs(new.width() - old.width()) > scale * 0.05f ||
+            abs(new.height() - old.height()) > scale * 0.05f ||
+            abs(new.left - old.left) > scale * 0.05f ||
+            abs(new.top - old.top) > scale * 0.05f
     }
 
     private fun createThrowControls() {
@@ -299,6 +358,11 @@ class OverlayService : Service() {
         autoButton = button(R.string.auto_off) { toggleAuto() }
         debugButton = button(R.string.debug_off) { toggleDebug() }
         dryRunButton = button(R.string.dry_run_off) { toggleDryRun() }
+        button(R.string.kill_switch) {
+            ThrowState.kill()
+            Toast.makeText(this, R.string.kill_engaged, Toast.LENGTH_LONG).show()
+            endSession(R.string.kill_engaged)
+        }
         button(R.string.stop) { endSession(R.string.message_stopped) }
         val params = overlayParameters().apply {
             width = WindowManager.LayoutParams.WRAP_CONTENT
@@ -341,7 +405,7 @@ class OverlayService : Service() {
     private fun updateDebugHud(stats: ScreenAnalyzer.Stats) {
         val hud = debugHud ?: return
         if (!debugEnabled) return
-        hud.text = DebugHud.format(stats)
+        hud.text = DebugHud.format(stats, droppedFrames = droppedFrames, staleFrames = staleFrames)
         hud.setTextColor(if (DebugHud.isOverBudget(stats)) android.graphics.Color.RED else android.graphics.Color.GREEN)
     }
 
@@ -397,6 +461,10 @@ class OverlayService : Service() {
 
     private fun toggleAuto() {
         if (ThrowState.controller.armed) { ThrowState.disarm(); return }
+        if (ThrowState.killed) {
+            Toast.makeText(this, R.string.kill_blocked, Toast.LENGTH_LONG).show()
+            return
+        }
         if (!TosAck.isAcknowledged(this)) {
             // Bring the app forward so the ban-risk notice can be acknowledged.
             startActivity(Intent(this, MainActivity::class.java)
@@ -406,10 +474,21 @@ class OverlayService : Service() {
             return
         }
         val service = GestureThrowService.current
-        val window = service?.targetWindow()
         val size = initialDisplay
+        if (!active || size == null) {
+            Toast.makeText(this, R.string.auto_start_capture, Toast.LENGTH_LONG).show()
+            return
+        }
+        // #77: disclose why the accessibility service exists before the system prompt.
+        if (service == null && !accessibilityDisclosureShown) {
+            accessibilityDisclosureShown = true
+            startActivity(Intent(this, MainActivity::class.java)
+                .putExtra(MainActivity.EXTRA_SHOW_ACCESSIBILITY, true)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            return
+        }
+        val window = service?.targetWindow()
         val reason = when {
-            !active || size == null -> R.string.auto_start_capture
             service == null -> GesturePermission.unavailable(this)
             Build.VERSION.SDK_INT < 26 -> R.string.auto_hold_unsupported
             calibration != null -> R.string.auto_finish_calibration
@@ -444,9 +523,10 @@ class OverlayService : Service() {
         val size = initialDisplay ?: return
         val view = BallCalibrationView(overlayContext) { x, y ->
             val ball = ThrowPlanner.Ball(x / size.width, y / size.height)
-            if (ThrowPlanner.validBall(ball) && GestureThrowService.current?.targetWindow()?.target == destination) {
+            val targetWindow = GestureThrowService.current?.targetWindow()
+            if (ThrowPlanner.validBall(ball) && targetWindow?.target == destination) {
                 lastActivityTime = SystemClock.elapsedRealtime()
-                ThrowState.calibrate(ball, destination)
+                ThrowState.calibrate(ball, destination, targetWindow.bounds)
                 removeCalibration()
                 Toast.makeText(this, R.string.calibrated_ball, Toast.LENGTH_SHORT).show()
             } else Toast.makeText(this, R.string.calibrate_invalid, Toast.LENGTH_SHORT).show()
@@ -512,7 +592,7 @@ class OverlayService : Service() {
     private fun endSession(@StringRes message: Int, error: Boolean = false) {
         if (terminating) return
         terminating = true
-        active = false
+        setPhase(CapturePhase.STOPPING)
         ThrowState.resetSession()
         guidance?.showRing(null)
         terminalStatus = SessionState.Status(if (error) SessionState.Phase.ERROR else SessionState.Phase.IDLE, message)
@@ -521,7 +601,7 @@ class OverlayService : Service() {
     }
     override fun onDestroy() {
         terminating = true
-        active = false
+        capturePhase = CapturePhase.IDLE
         ThrowState.changes.removeObserver(throwObserver)
         ThrowState.resetSession()
         mainHandler.removeCallbacksAndMessages(null)

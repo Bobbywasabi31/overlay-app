@@ -12,6 +12,23 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+      - name: Verify manifest privacy guards
+        run: |
+          # Item 59: backups must stay disabled (no app data leaves the device).
+          if ! grep -q 'android:allowBackup="false"' app/src/main/AndroidManifest.xml; then
+            echo "FAIL: android:allowBackup must be false"
+            exit 1
+          fi
+          if grep -q 'android:fullBackupContent="@' app/src/main/AndroidManifest.xml; then
+            echo "FAIL: android:fullBackupContent must not reference a backup rules file"
+            exit 1
+          fi
+          # Item 69: the app must never request network access.
+          if grep -q 'android.permission.INTERNET' app/src/main/AndroidManifest.xml; then
+            echo "FAIL: android.permission.INTERNET must stay absent"
+            exit 1
+          fi
+          echo "Manifest privacy guards OK: no backup, no INTERNET permission."
       - uses: actions/setup-java@v4
         with:
           distribution: temurin

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<issues format="6" by="lint 8.7.3">
+    <!-- Item 58: starting baseline. Pre-existing warnings recorded here stop
+         failing the build; anything new still fails (warningsAsErrors=true).
+         Regenerate with ./gradlew :app:updateLintBaseline when the codebase
+         legitimately changes. -->
+</issues>

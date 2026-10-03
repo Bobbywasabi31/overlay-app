@@ -75,6 +75,16 @@
     <string name="tos_body">Throw Assistant reads your screen to find throw rings and can send swipes through an accessibility service. Using assistance like this with Pokémon GO may violate the game\u2019s terms of service and risks an account ban. Use it at your own risk, ideally on an alternate account.</string>
     <string name="tos_acknowledge">I understand the risks</string>
     <string name="tos_required">Please acknowledge the notice to continue.</string>
+    <string name="tos_read_terms">Read terms</string>
+    <string name="kill_switch">Kill switch</string>
+    <string name="kill_switch_off">Kill switch: off</string>
+    <string name="kill_switch_on">Kill switch: ON</string>
+    <string name="kill_engaged">Kill switch engaged. Capture stopped and Auto is disabled until you re-enable it.</string>
+    <string name="kill_blocked">Kill switch is on. Re-enable it in the app to use Auto.</string>
+    <string name="accessibility_title">Why accessibility access?</string>
+    <string name="accessibility_body">Auto-throw uses an accessibility service to find the game window and perform throw swipes \u2014 only while Auto is armed. It does not read passwords or messages, and nothing ever leaves your device. You can switch it off at any time in Accessibility settings.</string>
+    <string name="open_settings">Open settings</string>
+    <string name="not_now">Not now</string>
     <string name="auto_on">Auto: %1$d/%2$d</string>
     <string name="auto_holding">Auto: holding ball (%1$d/%2$d)</string>
     <string name="auto_enable_service">Turn on Throw Assistant gestures in Android Accessibility settings.</string>
@@ -85,6 +95,7 @@
     <string name="auto_open_target">Open Practice or a Pokémon GO encounter before using Set ball or Auto.</string>
     <string name="auto_fullscreen">Open the encounter in a full-screen window before turning Auto on.</string>
     <string name="auto_set_ball">Tap Set ball, select the ball center in this encounter, then turn Auto on.</string>
+    <string name="auto_recalibrate">The game window changed since calibration. Tap Set ball to recalibrate.</string>
     <string name="auto_wait_gesture">Wait for the previous gesture to finish before calibrating or arming again.</string>
     <string name="auto_hold_unsupported">Automatic holding requires Android 8.0 or newer. Overlay guidance and manual Practice still work.</string>
     <string name="auto_hold_timeout">No stable ring appeared while holding the ball. Auto is off. Check the ball position and capture alignment before trying again.</string>
