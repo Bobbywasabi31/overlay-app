@@ -14,6 +14,7 @@ class PracticeScene(startMs: Long = 0) {
     data class Release(val x: Float, val y: Float, val timeMs: Long, val result: Result)
     var smallPale = false
     var moving = false
+    var ringOnHold = true
     var colorIndex = 0
     var attempts = 0
         private set
@@ -24,6 +25,7 @@ class PracticeScene(startMs: Long = 0) {
     private var cycleStart = startMs
 
     fun ready(nowMs: Long): Boolean = release?.let { nowMs - it.timeMs >= RECOVERY_MS } ?: true
+    fun ringVisible(nowMs: Long, ballHeld: Boolean): Boolean = ready(nowMs) && (!ringOnHold || ballHeld)
 
     fun geometry(width: Int, height: Int, nowMs: Long): Geometry {
         require(width > 0 && height > 0)
@@ -37,8 +39,10 @@ class PracticeScene(startMs: Long = 0) {
     }
 
     fun submit(width: Int, height: Int, startX: Float, startY: Float, endX: Float, endY: Float,
-        downMs: Long, upMs: Long): Result? {
-        if (width <= 0 || height <= 0 || !ready(upMs) || upMs - downMs !in 150L..600L ||
+        downMs: Long, upMs: Long, movementStartMs: Long = downMs, sampleAllowanceMs: Long = 0): Result? {
+        // Touch sampling can deliver the first moving point one frame after movement began.
+        if (sampleAllowanceMs !in 0L..33L || movementStartMs < downMs || movementStartMs > upMs ||
+            width <= 0 || height <= 0 || !ready(upMs) || upMs - movementStartMs !in (150L - sampleAllowanceMs)..600L ||
             !startX.isFinite() || !startY.isFinite() || !endX.isFinite() || !endY.isFinite()) return null
         val g = geometry(width, height, upMs)
         if (hypot(startX - g.ballX, startY - g.ballY) > g.ballRadius * 1.4f ||

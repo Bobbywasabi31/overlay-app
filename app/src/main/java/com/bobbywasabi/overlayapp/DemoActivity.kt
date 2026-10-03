@@ -27,6 +27,10 @@ class DemoActivity : AppCompatActivity() {
         binding.smallRingButton.setOnClickListener { binding.practiceRing.toggleSmallPale() }
         binding.movementButton.setOnClickListener { binding.practiceRing.toggleMovement() }
         binding.colorButton.setOnClickListener { binding.practiceRing.nextColor() }
+        binding.ringModeButton.setOnClickListener {
+            binding.ringModeButton.setText(if (binding.practiceRing.toggleRingMode())
+                R.string.demo_ring_hold else R.string.demo_ring_always)
+        }
     }
     override fun onResume() { super.onResume(); PracticeSession.resume(); binding.practiceRing.resume() }
     override fun onPause() { binding.practiceRing.pause(); PracticeSession.pause(); super.onPause() }

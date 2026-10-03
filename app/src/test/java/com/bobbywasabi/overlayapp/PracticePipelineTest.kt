@@ -7,7 +7,7 @@ import org.junit.Test
 
 class PracticePipelineTest {
     // Rasterize the shared encounter geometry at the actual 960-pixel capture limit.
-    private fun frame(scene: PracticeScene, time: Long): IntArray {
+    private fun frame(scene: PracticeScene, time: Long, held: Boolean = true): IntArray {
         val g = scene.geometry(432, 960, time)
         return IntArray(432 * 960) { i ->
             val x = (i % 432).toFloat()
@@ -16,7 +16,7 @@ class PracticePipelineTest {
             val stroke = if (scene.smallPale) 0.7f else 1.3f
             when {
                 !scene.ready(time) -> 0xff404b53.toInt()
-                abs(distance - g.ringRadius) <= stroke -> if (scene.smallPale) 0xff9ed395.toInt() else 0xff6df28a.toInt()
+                scene.ringVisible(time, held) && abs(distance - g.ringRadius) <= stroke -> if (scene.smallPale) 0xff9ed395.toInt() else 0xff6df28a.toInt()
                 hypot(x - g.ballX, y - g.ballY) <= g.ballRadius -> if (y < g.ballY) 0xffd95258.toInt() else 0xfff0f0f0.toInt()
                 else -> 0xff85898d.toInt()
             }
@@ -46,5 +46,12 @@ class PracticePipelineTest {
         assertEquals(0.5f, ring.x, 0.01f)
         assertEquals(0.44f, ring.y, 0.01f)
         assertEquals(scene.geometry(432, 960, 5999).ringRadius / 432, ring.radius, 0.005f)
+    }
+    @Test fun detectorSeesNoRingUntilBallIsHeld() {
+        val scene = PracticeScene()
+        val analyzer = ScreenAnalyzer()
+        assertNull(analyzer.analyze(frame(scene, 0, held = false), 432, 960))
+        assertNotNull(analyzer.analyze(frame(scene, 750, held = true), 432, 960))
+        assertNull(analyzer.analyze(frame(scene, 850, held = false), 432, 960))
     }
 }

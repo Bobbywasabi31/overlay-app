@@ -39,6 +39,10 @@ class AutoThrowController {
         absentSince = null
     }
 
+    /** Holding reveals a hidden ring, but cannot bypass repeat and cooldown checks. */
+    fun canBeginHold(nowMs: Long): Boolean = armed && !busy && !waitingForClear &&
+        (lastThrow?.let { nowMs - it >= COOLDOWN_MS } ?: true)
+
     fun consider(ring: ScreenAnalyzer.Ring?, nowMs: Long): Boolean {
         if (!armed || busy) return false
         val time = previousTime

@@ -104,6 +104,7 @@ class OverlayService : Service() {
             if (!CaptureTiming.isFresh(lastResultTime, SystemClock.elapsedRealtime())) {
                 guidance?.showRing(null)
                 ThrowState.controller.resetTracking()
+                if (GestureThrowService.current?.holding == true) ThrowState.disarm()
             }
             if (ThrowState.controller.armed && GestureThrowService.current?.targetWindow()?.target != ThrowState.target) ThrowState.disarm()
             if (calibration != null && GestureThrowService.current?.targetIsForeground != true) removeCalibration()
@@ -232,16 +233,27 @@ class OverlayService : Service() {
             ThrowState.disarm()
             return
         }
-        if (!controller.consider(ring, frameTime) || ring == null) return
+        val ready = controller.consider(ring, frameTime)
+        if (!service.holding && controller.canBeginHold(frameTime)) {
+            controller.resetTracking()
+            try {
+                if (!service.holdBall(ball, size.width, size.height, frameTime)) ThrowState.disarm()
+            } catch (error: RuntimeException) {
+                Log.e(TAG, "Unable to hold ball", error)
+                ThrowState.disarm()
+            }
+            return
+        }
+        if (!service.canContinueHold || !ready || ring == null) return
         val swipe = ThrowPlanner.plan(ring, ball, size.width, size.height, ThrowState.durationMs) ?: return
         controller.beginThrow(frameTime)
-        ThrowState.changed()
         try {
-            val dispatched = service.throwBall(swipe) { success ->
+            val dispatched = service.throwBall(swipe, frameTime) { success ->
                 controller.finishThrow(success)
                 ThrowState.changed()
             }
             if (!dispatched) { controller.finishThrow(false); ThrowState.changed() }
+            else ThrowState.changed()
         } catch (error: RuntimeException) {
             Log.e(TAG, "Unable to dispatch throw gesture", error)
             controller.finishThrow(false)
@@ -263,17 +275,7 @@ class OverlayService : Service() {
             row.addView(this)
         }
         button(R.string.calibrate_ball) { startCalibration() }
-        autoButton = button(R.string.auto_off) {
-            if (ThrowState.controller.armed) ThrowState.disarm()
-            else if (active && calibration == null && ThrowState.ball != null &&
-                initialDisplay?.let { it.height > it.width } == true &&
-                ThrowState.target != null && GestureThrowService.current?.targetWindow()?.target == ThrowState.target &&
-                !ThrowState.controller.busy) {
-                if (GestureThrowService.current?.busy == true) return@button
-                ThrowState.controller.arm()
-                ThrowState.changed()
-            } else Toast.makeText(this, R.string.auto_requirements, Toast.LENGTH_LONG).show()
-        }
+        autoButton = button(R.string.auto_off) { toggleAuto() }
         button(R.string.stop) { endSession(R.string.message_stopped) }
         val params = overlayParameters().apply {
             width = WindowManager.LayoutParams.WRAP_CONTENT
@@ -288,16 +290,47 @@ class OverlayService : Service() {
 
     private fun renderThrowControls() {
         autoButton?.text = if (ThrowState.controller.armed)
-            getString(R.string.auto_on, ThrowState.controller.throws, AutoThrowController.MAX_THROWS)
+            getString(if (GestureThrowService.current?.holding == true) R.string.auto_holding else R.string.auto_on,
+                ThrowState.controller.throws, AutoThrowController.MAX_THROWS)
         else getString(R.string.auto_off)
+    }
+
+    private fun toggleAuto() {
+        if (ThrowState.controller.armed) { ThrowState.disarm(); return }
+        val service = GestureThrowService.current
+        val window = service?.targetWindow()
+        val size = initialDisplay
+        val reason = when {
+            !active || size == null -> R.string.auto_start_capture
+            service == null -> GesturePermission.unavailable(this)
+            Build.VERSION.SDK_INT < 26 -> R.string.auto_hold_unsupported
+            calibration != null -> R.string.auto_finish_calibration
+            size.height <= size.width -> R.string.auto_portrait
+            window == null -> R.string.auto_open_target
+            window.bounds.width() < size.width * 0.9 || window.bounds.height() < size.height * 0.85 -> R.string.auto_fullscreen
+            ThrowState.ball == null || ThrowState.target != window.target -> R.string.auto_set_ball
+            ThrowState.controller.busy || service.busy -> R.string.auto_wait_gesture
+            else -> null
+        }
+        if (reason != null) Toast.makeText(this, reason, Toast.LENGTH_LONG).show()
+        else { ThrowState.controller.arm(); ThrowState.changed() }
     }
 
     private fun startCalibration() {
         if (!active || calibration != null) return
         ThrowState.disarm()
-        val destination = GestureThrowService.current?.targetWindow()?.target
+        val service = GestureThrowService.current
+        if (service == null) {
+            Toast.makeText(this, GesturePermission.unavailable(this), Toast.LENGTH_LONG).show()
+            return
+        }
+        if (service.busy) {
+            Toast.makeText(this, R.string.auto_wait_gesture, Toast.LENGTH_LONG).show()
+            return
+        }
+        val destination = service.targetWindow()?.target
         if (destination == null) {
-            Toast.makeText(this, R.string.auto_requirements, Toast.LENGTH_LONG).show()
+            Toast.makeText(this, R.string.auto_open_target, Toast.LENGTH_LONG).show()
             return
         }
         val size = initialDisplay ?: return
