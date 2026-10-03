@@ -77,19 +77,29 @@ class ServiceLifecycleTest {
 
     @Test fun gestureUnbindDisconnectsWithoutDestroy() {
         ThrowState.resetSession()
-        val service = Robolectric.buildService(GestureThrowService::class.java).create().get()
-        ReflectionHelpers.callInstanceMethod<Any>(service, "onServiceConnected")
-        assertNotNull(GestureThrowService.current)
-        service.onUnbind(null)
-        assertNull(GestureThrowService.current)
-        assertFalse(ThrowState.controller.armed)
+        val lifecycle = Robolectric.buildService(GestureThrowService::class.java).create()
+        val service = lifecycle.get()
+        try {
+            ReflectionHelpers.callInstanceMethod<Any>(service, "onServiceConnected")
+            assertNotNull(GestureThrowService.current)
+            service.onUnbind(null)
+            assertNull(GestureThrowService.current)
+            assertFalse(ThrowState.controller.armed)
+        } finally {
+            lifecycle.destroy()
+        }
     }
 
     @Test fun gestureInterruptDisarmsController() {
         ThrowState.resetSession()
-        val service = Robolectric.buildService(GestureThrowService::class.java).create().get()
-        ThrowState.controller.arm()
-        service.onInterrupt()
-        assertFalse(ThrowState.controller.armed)
+        val lifecycle = Robolectric.buildService(GestureThrowService::class.java).create()
+        val service = lifecycle.get()
+        try {
+            ThrowState.controller.arm()
+            service.onInterrupt()
+            assertFalse(ThrowState.controller.armed)
+        } finally {
+            lifecycle.destroy()
+        }
     }
 }

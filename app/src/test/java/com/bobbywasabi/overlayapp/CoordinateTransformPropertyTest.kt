@@ -47,7 +47,8 @@ class CoordinateTransformPropertyTest {
     @Test fun swipeAlwaysTravelsUpward() {
         repeat(200) {
             val (width, height) = portraitDims()
-            val swipe = requireNotNull(ThrowPlanner.plan(validRing(validBall()), validBall(), width, height, 350))
+            val ball = validBall()
+            val swipe = requireNotNull(ThrowPlanner.plan(validRing(ball), ball, width, height, 350))
             assertTrue("end ${swipe.endY} should be above start ${swipe.startY}", swipe.endY < swipe.startY)
         }
     }
@@ -56,7 +57,8 @@ class CoordinateTransformPropertyTest {
         repeat(100) {
             val (width, height) = portraitDims()
             val duration = 150L + random.nextInt(451)
-            val swipe = requireNotNull(ThrowPlanner.plan(validRing(validBall()), validBall(), width, height, duration))
+            val ball = validBall()
+            val swipe = requireNotNull(ThrowPlanner.plan(validRing(ball), ball, width, height, duration))
             assertEquals(duration, swipe.durationMs)
         }
     }

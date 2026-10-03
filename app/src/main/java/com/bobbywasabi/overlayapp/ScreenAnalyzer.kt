@@ -37,8 +37,10 @@ class ScreenAnalyzer {
         val x1 = (width * REGION_X1).toInt().coerceIn(x0, width - 1)
         val y0 = (height * REGION_Y0).toInt().coerceIn(0, height - 1)
         val y1 = (height * REGION_Y1).toInt().coerceIn(y0, height - 1)
-        // #14: skip washed-out frames (loading screens, fades) before the expensive pass.
-        if (isGrayscale(pixels, width, x0, x1, y0, y1)) {
+        // #14: skip frames with no vivid pixels at all (loading screens, fades)
+        // before the expensive pass. Uses max (not average) saturation so a
+        // small desaturated ring on a gray background is still detected.
+        if (!hasVividPixels(pixels, width, x0, x1, y0, y1)) {
             lastStats = Stats(
                 analysisMs = (System.nanoTime() - startedNs) / 1_000_000,
                 candidates = 0,
@@ -136,10 +138,8 @@ class ScreenAnalyzer {
         return best
     }
 
-    /** #14: average per-pixel saturation below this means "no vivid ring possible". */
-    private fun isGrayscale(pixels: IntArray, width: Int, x0: Int, x1: Int, y0: Int, y1: Int): Boolean {
-        var sum = 0L
-        var n = 0L
+    /** #14: true when any sampled pixel is vivid enough to belong to a ring. */
+    private fun hasVividPixels(pixels: IntArray, width: Int, x0: Int, x1: Int, y0: Int, y1: Int): Boolean {
         var y = y0
         while (y <= y1) {
             var x = x0
@@ -148,19 +148,18 @@ class ScreenAnalyzer {
                 val red = (color ushr 16) and 255
                 val green = (color ushr 8) and 255
                 val blue = color and 255
-                sum += max(red, max(green, blue)) - min(red, min(green, blue))
-                n++
-                x += 16
+                if (max(red, max(green, blue)) - min(red, min(green, blue)) >= VIVID_SATURATION) return true
+                x += 4
             }
-            y += 16
+            y += 4
         }
-        return n > 0 && sum / n < GRAYSCALE_SATURATION
+        return false
     }
 
     companion object {
         /** Frame-analysis budget for low-end phones (item 21); the HUD flags overruns. */
         const val ANALYSIS_BUDGET_MS = 40L
-        const val GRAYSCALE_SATURATION = 10
+        const val VIVID_SATURATION = 32
         const val REGION_X0 = 0.12f
         const val REGION_X1 = 0.88f
         const val REGION_Y0 = 0.18f

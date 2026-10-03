@@ -5,10 +5,16 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import org.junit.After
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
 class KillSwitchTest {
+    @After fun clearKillSwitch() {
+        // The kill latch is static; never leak it into other test classes.
+        ThrowState.revive()
+        ThrowState.resetSession()
+    }
     @Test fun killLatchesAndDisarms() {
         ThrowState.resetSession()
         ThrowState.controller.arm()
