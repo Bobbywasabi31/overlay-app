@@ -79,14 +79,16 @@ class ScreenAnalyzer {
                 blockSat[blockRow + x / BLOCK] += max(red, max(green, blue)) - min(red, min(green, blue))
             }
         }
-        // Smooth the block averages over the 3x3 block neighborhood, excluding
-        // the center block so a ring does not pollute its own background estimate.
+        // Smooth the block averages over the 5x5 block neighborhood, excluding
+        // the center block. A 3x3 neighborhood lets a thin ring pollute its own
+        // background estimate via neighboring blocks; 5x5 dilutes the ring's
+        // contribution so it does not suppress itself.
         for (by in 0 until bh) {
             for (bx in 0 until bw) {
                 var sum = 0
                 var cnt = 0
-                for (ny in max(0, by - 1)..min(bh - 1, by + 1)) {
-                    for (nx in max(0, bx - 1)..min(bw - 1, bx + 1)) {
+                for (ny in max(0, by - 2)..min(bh - 1, by + 2)) {
+                    for (nx in max(0, bx - 2)..min(bw - 1, bx + 2)) {
                         if (nx == bx && ny == by) continue
                         sum += blockSat[ny * bw + nx]
                         cnt++
@@ -230,9 +232,9 @@ class ScreenAnalyzer {
                 val green = (color ushr 8) and 255
                 val blue = color and 255
                 if (max(red, max(green, blue)) - min(red, min(green, blue)) >= VIVID_SATURATION) return true
-                x += 4
+                x += 2
             }
-            y += 4
+            y += 2
         }
         return false
     }
