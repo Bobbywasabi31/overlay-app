@@ -184,7 +184,7 @@ class ScreenAnalyzer {
             val radius = sum / tail
             val relativeError = sqrt(max(0.0, sumSquares / tail - radius * radius)) / radius
             val coverage = Integer.bitCount(sectors) / 24f
-            if (relativeError > 0.10 || coverage < 0.75f) { reject("shape"); continue }
+            if (relativeError > 0.10 || coverage < 0.70f) { reject("shape"); continue }
             // Thin-ring verification: a solid disk's edge also high-passes as a
             // circle, so require the interior to be clearly less saturated than
             // the ring itself (relative, so a ring around a Pokemon still passes).
