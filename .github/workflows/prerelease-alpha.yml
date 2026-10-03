@@ -1,0 +1,93 @@
+name: Publish v0.3.2-alpha.5
+on:
+  push:
+    branches: ['release/v0.3.2-alpha.5']
+    paths: ['.github/workflows/prerelease-alpha.yml']
+permissions:
+  contents: read
+concurrency:
+  group: release-v0.3.2-alpha.5
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+      SOURCE_SHA: c212d88d620959eaf256cf5eed78b92e4ead7070
+      SOURCE_RUN: '37085706036'
+      RELEASE_TAG: v0.3.2-alpha.5
+      APK_SHA256: 0d8e45846677aec446f6bd277b6330242395cbfa1da6b41f1a3890e4854fb224
+    steps:
+      - name: Verify successful main build and download tested APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api "repos/$GH_REPO/actions/runs/$SOURCE_RUN" > source-run.json
+          jq -e --arg sha "$SOURCE_SHA" --arg repo "$GH_REPO" \
+            '.status == "completed" and .conclusion == "success" and .head_sha == $sha and .head_branch == "main" and .event == "push" and .repository.full_name == $repo and .path == ".github/workflows/android.yml"' source-run.json
+          gh run download "$SOURCE_RUN" --name throw-assistant-debug --dir artifact
+          test -s artifact/app-debug.apk
+          printf '%s  %s\n' "$APK_SHA256" artifact/app-debug.apk | sha256sum --check --strict
+          unzip -tq artifact/app-debug.apk
+          mkdir release
+          cp artifact/app-debug.apk "release/ThrowAssistant-$RELEASE_TAG.apk"
+          cd release
+          sha256sum "ThrowAssistant-$RELEASE_TAG.apk" > SHA256SUMS.txt
+      - name: Prepare release notes
+        shell: bash
+        run: |
+          cat > release-notes.md <<'NOTES'
+          Automatic held-ball encounters and clearer setup messages for Throw Assistant alpha 5.
+          
+          Download **ThrowAssistant-v0.3.2-alpha.5.apk** below. Android 7.0 / API 24 supports overlay guidance and manual Practice. Automatic holding requires Android 8.0 / API 26 or newer. **SHA256SUMS.txt** verifies the APK download.
+          
+          - Auto presses the calibrated ball for 750 ms to reveal a hidden ring, confirms fresh stable detections, then continues the same touch into its configured swipe. The ball stays held between detection and movement.
+          - If no stable ring is available within 1.5 seconds, Auto releases the held pointer and disarms. Stop, focus loss, calibration changes, and capture restart prevent a subsequent throw. Existing observed-absence, cooldown, target scope, and five-throw checks remain active.
+          - Practice hides its colored ring until the ball is held by default. Its ring-mode button also supports always-visible rings. Scoring measures swipe movement separately from holding time.
+          - A missing ball calibration now prompts **Set ball** instead of incorrectly asking for gesture permission. Disabled permission, disconnected service, wrong screen, portrait/full-screen requirements, and a busy gesture each get their own message.
+          
+          To use Auto: enable **Throw Assistant gestures**, start full-display capture, open Practice or a Pokémon GO encounter in portrait, tap **Set ball** and select the ball center, then arm **Auto**. Calibrate separately when switching between Practice and the game. If Android blocks Accessibility as a restricted setting, enable **Allow restricted settings** in Throw Assistant App info, then turn on the separate Accessibility service toggle.
+          
+          This is a **debug-signed alpha test APK**, in-app version **0.3.2-alpha.5**, version code **6**. Debug keys can differ across builds. If Android refuses to update alpha 4, uninstall that earlier build before installing this APK, then grant permissions again.
+          
+          Validation: **77 JVM / Robolectric tests passed**, with zero failures or skips. Android Lint reported zero issues and debug APK assembly passed. Tests cover continued-pointer identity, hold timeout with a lost callback, Stop/focus-loss release, stale decisions, calibration changes, late callbacks, the fifth throw, permission messages, held-ring detection, and practice touch scoring. Lint retains the documented exclusions for dependency-update notices and the API 35 OldTargetApi advisory. This APK is copied unchanged from the validated main build.
+          
+          Physical-device continued-touch delivery, overlay alignment, cleanup across rotation/permission loss, and gameplay accuracy remain unvalidated. Practice checks screen-space releases; it does not model Pokémon GO ballistics, throw grades, or catches.
+          
+          Source commit: c212d88d620959eaf256cf5eed78b92e4ead7070
+          Validated build: https://github.com/Bobbywasabi31/overlay-app/actions/runs/37085706036
+          Source review: https://github.com/Bobbywasabi31/overlay-app/pull/2
+          NOTES
+      - name: Stage APK and checksum in a draft prerelease
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api --method POST "repos/$GH_REPO/git/refs" \
+            -f "ref=refs/tags/$RELEASE_TAG" -f "sha=$SOURCE_SHA" > created-tag.json
+          jq -e --arg sha "$SOURCE_SHA" '.object.sha == $sha' created-tag.json
+          gh release create "$RELEASE_TAG" \
+            "release/ThrowAssistant-$RELEASE_TAG.apk" release/SHA256SUMS.txt \
+            --target "$SOURCE_SHA" --verify-tag --prerelease --draft --latest=false \
+            --title "Throw Assistant $RELEASE_TAG" --notes-file release-notes.md
+      - name: Verify uploaded bytes and publish prerelease
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api "repos/$GH_REPO/git/ref/tags/$RELEASE_TAG" \
+            --jq '.object.sha' > release-tag-sha.txt
+          test "$(cat release-tag-sha.txt)" = "$SOURCE_SHA"
+          gh release download "$RELEASE_TAG" \
+            --pattern "ThrowAssistant-$RELEASE_TAG.apk" --pattern SHA256SUMS.txt --dir verify
+          cmp "release/ThrowAssistant-$RELEASE_TAG.apk" "verify/ThrowAssistant-$RELEASE_TAG.apk"
+          cmp release/SHA256SUMS.txt verify/SHA256SUMS.txt
+          (cd verify && sha256sum --check --strict SHA256SUMS.txt)
+          gh release edit "$RELEASE_TAG" --draft=false --prerelease --latest=false
+          gh api "repos/$GH_REPO/releases/tags/$RELEASE_TAG" > published-release.json
+          jq -e --arg tag "$RELEASE_TAG" \
+            '.draft == false and .prerelease == true and .tag_name == $tag and (.assets | length) == 2 and ([.assets[].state] | all(. == "uploaded"))' published-release.json
+          jq -r '.html_url' published-release.json
