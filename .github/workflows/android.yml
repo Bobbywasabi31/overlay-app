@@ -23,19 +23,19 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - name: Test, lint, and build
         run: ./gradlew --no-daemon :app:testDebugUnitTest :app:checkCoverage :app:lintDebug :app:assembleDebug
-      - name: Decode release keystore (if secret present)
-        if: ${{ secrets.THROW_ASSISTANT_KEYSTORE_B64 != '' }}
+      - name: Assemble signed release APK when keystore secret exists
         env:
           THROW_ASSISTANT_KEYSTORE_B64: ${{ secrets.THROW_ASSISTANT_KEYSTORE_B64 }}
-        run: echo "$THROW_ASSISTANT_KEYSTORE_B64" | base64 --decode > /tmp/throw-assistant.keystore
-      - name: Assemble signed release APK (if keystore present)
-        if: ${{ secrets.THROW_ASSISTANT_KEYSTORE_B64 != '' }}
-        env:
-          THROW_ASSISTANT_KEYSTORE_PATH: /tmp/throw-assistant.keystore
           THROW_ASSISTANT_STORE_PASSWORD: ${{ secrets.THROW_ASSISTANT_STORE_PASSWORD }}
           THROW_ASSISTANT_KEY_ALIAS: ${{ secrets.THROW_ASSISTANT_KEY_ALIAS }}
           THROW_ASSISTANT_KEY_PASSWORD: ${{ secrets.THROW_ASSISTANT_KEY_PASSWORD }}
-        run: ./gradlew --no-daemon :app:assembleRelease
+        run: |
+          if [ -n "$THROW_ASSISTANT_KEYSTORE_B64" ]; then
+            echo "$THROW_ASSISTANT_KEYSTORE_B64" | base64 --decode > /tmp/throw-assistant.keystore
+            THROW_ASSISTANT_KEYSTORE_PATH=/tmp/throw-assistant.keystore ./gradlew --no-daemon :app:assembleRelease
+          else
+            echo "No keystore secret configured; skipping signed release build."
+          fi
       - name: Upload installable debug APK
         uses: actions/upload-artifact@v4
         with:
