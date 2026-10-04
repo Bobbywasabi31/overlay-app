@@ -17,7 +17,6 @@ class ScreenAnalyzer {
     private var queue = IntArray(0)
     private var blockSat = IntArray(0)
     private var blockBg = IntArray(0)
-    private var blockTmp = IntArray(0)
 
     /** Per-frame diagnostics for the debug HUD (items 21, 85). */
     data class Stats(
@@ -67,7 +66,6 @@ class ScreenAnalyzer {
         if (blockSat.size != bw * bh) {
             blockSat = IntArray(bw * bh)
             blockBg = IntArray(bw * bh)
-            blockTmp = IntArray(bw * bh)
         }
         blockSat.fill(0)
         for (y in 0 until height) {
@@ -81,43 +79,20 @@ class ScreenAnalyzer {
                 blockSat[blockRow + x / BLOCK] += max(red, max(green, blue)) - min(red, min(green, blue))
             }
         }
-        // Smooth the block averages over the 5x5 block neighborhood. A 3x3
-        // neighborhood lets a thin ring pollute its own background estimate via
-        // neighboring blocks; 5x5 dilutes the ring's contribution so it does
-        // not suppress itself. The separable implementation excludes the
-        // central cross (center block plus 4 orthogonal neighbors), which are
-        // the blocks most likely to contain the ring itself.
-        // Separable box blur (horizontal then vertical) for speed: 10 taps
-        // per block instead of 24.
-        val temp = blockTmp
+        // Smooth the block averages over the 3x3 block neighborhood, excluding
+        // the center block so a ring does not pollute its own background estimate.
         for (by in 0 until bh) {
             for (bx in 0 until bw) {
                 var sum = 0
                 var cnt = 0
-                for (dx in -2..2) {
-                    val nx = bx + dx
-                    if (nx in 0 until bw) {
-                        sum += blockSat[by * bw + nx]
+                for (ny in max(0, by - 1)..min(bh - 1, by + 1)) {
+                    for (nx in max(0, bx - 1)..min(bw - 1, bx + 1)) {
+                        if (nx == bx && ny == by) continue
+                        sum += blockSat[ny * bw + nx]
                         cnt++
                     }
                 }
-                // Exclude the center block's own contribution by subtracting it
-                // and reducing the count; the vertical pass then averages.
-                temp[by * bw + bx] = (sum - blockSat[by * bw + bx]) / max(1, (cnt - 1) * BLOCK * BLOCK)
-            }
-        }
-        for (by in 0 until bh) {
-            for (bx in 0 until bw) {
-                var sum = 0
-                var cnt = 0
-                for (dy in -2..2) {
-                    val ny = by + dy
-                    if (ny in 0 until bh) {
-                        sum += temp[ny * bw + bx]
-                        cnt++
-                    }
-                }
-                blockBg[by * bw + bx] = sum / max(1, cnt)
+                blockBg[by * bw + bx] = if (cnt > 0) sum / (cnt * BLOCK * BLOCK) else 0
             }
         }
         for (y in 0 until height) {
