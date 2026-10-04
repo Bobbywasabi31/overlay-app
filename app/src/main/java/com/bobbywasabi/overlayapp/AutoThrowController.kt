@@ -111,8 +111,10 @@ class AutoThrowController {
         const val CLEAR_MS = 1200L
         const val COOLDOWN_MS = 3000L
         const val MAX_THROWS = 5
-        /** Only throw when the ring has shrunk to excellent size (or smaller). */
-        const val EXCELLENT_RADIUS_MAX = 0.05f
+        /** Only throw when the ring has shrunk to excellent size (or smaller).
+         * 0.07 gives the detector margin — the ring moves fast and a tight
+         * 0.05 means the window closes before the stability timer finishes. */
+        const val EXCELLENT_RADIUS_MAX = 0.07f
         /** Brief analyzer flicker does not reset the stability timer. */
         const val NULL_GRACE_MS = 200L
         /** #4: rings at least this confident are tracked. */
