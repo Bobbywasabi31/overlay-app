@@ -255,9 +255,9 @@ class ScreenAnalyzer {
                 val green = (color ushr 8) and 255
                 val blue = color and 255
                 if (max(red, max(green, blue)) - min(red, min(green, blue)) >= VIVID_SATURATION) return true
-                x += 2
+                x += 4
             }
-            y += 2
+            y += 4
         }
         return false
     }
