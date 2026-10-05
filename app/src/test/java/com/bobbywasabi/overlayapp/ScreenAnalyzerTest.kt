@@ -109,6 +109,21 @@ class ScreenAnalyzerTest {
         assertNull(analyzer.analyze(frame(0xff9ed3d3.toInt()), width, height))
         assertNull(analyzer.analyze(frame(0xffc4cbc4.toInt()), width, height))
     }
+    @Test fun detectsThinRingDespiteSelfPollutedBackground() {
+        // #13 cause #1: a thin ring raises the saturation of the neighboring
+        // 4x4 blocks it crosses; a plain neighborhood mean lets the ring
+        // suppress its own pixels below the high-pass threshold and fragment.
+        // bg sat 48, ring sat 78: close enough that self-pollution matters.
+        val pixels = IntArray(width * height) { i ->
+            if (abs(hypot(i % width - 120.0, i / width - 220.0) - 44.0) <= 1.0)
+                0xffe89a9a.toInt() else 0xffc89898.toInt()
+        }
+        val ring = requireNotNull(analyzer.analyze(pixels, width, height))
+        assertEquals(0.5f, ring.x, 0.01f)
+        assertEquals(0.55f, ring.y, 0.01f)
+        assertEquals(44f / width, ring.radius, 0.01f)
+        assertTrue(ring.confidence > 0.7f)
+    }
     @Test(expected = IllegalArgumentException::class)
     fun rejectsInvalidFrameDimensions() { analyzer.analyze(IntArray(4), 3, 3) }
 }

@@ -79,20 +79,39 @@ class ScreenAnalyzer {
                 blockSat[blockRow + x / BLOCK] += max(red, max(green, blue)) - min(red, min(green, blue))
             }
         }
-        // Smooth the block averages over the 3x3 block neighborhood, excluding
-        // the center block so a ring does not pollute its own background estimate.
+        // Smooth the block averages over the 3x3 block neighborhood with a
+        // trimmed mean (#13 cause #1): a thin ring raises the saturation of the
+        // neighboring blocks it passes through, so a plain mean lets the ring
+        // pollute its own background estimate and suppress itself below the
+        // high-pass threshold. Averaging only the lower half of the
+        // neighborhood keeps the estimate anchored to the true background —
+        // broad vivid scenery still raises it, so the grass fix from v0.4.1 is
+        // preserved — at the same 3x3 cost the 40ms budget was tuned for
+        // (the 5x5 neighborhood was reverted for perf before v0.4.11).
+        // The center block is excluded as before.
+        val neighbors = IntArray(8)
         for (by in 0 until bh) {
             for (bx in 0 until bw) {
-                var sum = 0
                 var cnt = 0
                 for (ny in max(0, by - 1)..min(bh - 1, by + 1)) {
                     for (nx in max(0, bx - 1)..min(bw - 1, bx + 1)) {
                         if (nx == bx && ny == by) continue
-                        sum += blockSat[ny * bw + nx]
-                        cnt++
+                        neighbors[cnt++] = blockSat[ny * bw + nx]
                     }
                 }
-                blockBg[by * bw + bx] = if (cnt > 0) sum / (cnt * BLOCK * BLOCK) else 0
+                for (i in 1 until cnt) {
+                    val v = neighbors[i]
+                    var j = i - 1
+                    while (j >= 0 && neighbors[j] > v) {
+                        neighbors[j + 1] = neighbors[j]
+                        j--
+                    }
+                    neighbors[j + 1] = v
+                }
+                val take = max(1, (cnt + 1) / 2)
+                var sum = 0
+                for (i in 0 until take) sum += neighbors[i]
+                blockBg[by * bw + bx] = sum / (take * BLOCK * BLOCK)
             }
         }
         for (y in 0 until height) {
