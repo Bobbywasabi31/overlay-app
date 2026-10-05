@@ -84,47 +84,39 @@ class ScreenAnalyzer {
         // blocks it passes through, so a plain mean lets the ring pollute its
         // own background estimate and suppress itself below the high-pass
         // threshold (fragmentation -> shape rejection). Take the minimum over
-        // opposing-neighbor pair means instead: the ring can spoil the pairs
-        // it touches, but a pair facing the true background stays clean.
-        // Broad vivid scenery raises every pair, so the grass fix from v0.4.1
-        // is preserved. Same 3x3 cost class the 40ms budget was tuned for
-        // (the 5x5 neighborhood was reverted for perf before v0.4.11), and no
-        // gate thresholds changed. The center block is excluded as before.
-        val pairDy = intArrayOf(0, 1, 1, 1)
-        val pairDx = intArrayOf(1, -1, 0, 1)
+        // opposing-neighbor pair sums instead: the ring can spoil the pairs it
+        // touches, but a pair facing the true background stays clean. Broad
+        // vivid scenery raises every pair, so the grass fix from v0.4.1 is
+        // preserved. Interior blocks need no bounds checks (4 pair-sums + 3
+        // comparisons -- cheaper than the old plain mean); border blocks keep
+        // the old mean. No gate thresholds changed. The center block is
+        // excluded as before.
+        for (by in 1 until bh - 1) {
+            for (bx in 1 until bw - 1) {
+                val b = by * bw + bx
+                var best = blockSat[b - bw - 1] + blockSat[b + bw + 1] // TL+BR
+                var pair = blockSat[b - bw] + blockSat[b + bw] // T+B
+                if (pair < best) best = pair
+                pair = blockSat[b - bw + 1] + blockSat[b + bw - 1] // TR+BL
+                if (pair < best) best = pair
+                pair = blockSat[b - 1] + blockSat[b + 1] // L+R
+                if (pair < best) best = pair
+                blockBg[b] = best / 32
+            }
+        }
         for (by in 0 until bh) {
             for (bx in 0 until bw) {
-                var best = Int.MAX_VALUE
-                var pairs = 0
-                for (p in 0..3) {
-                    val dy = pairDy[p]
-                    val dx = pairDx[p]
-                    val ay = by + dy
-                    val ax = bx + dx
-                    val oy = by - dy
-                    val ox = bx - dx
-                    if (ay in 0 until bh && ax in 0 until bw && oy in 0 until bh && ox in 0 until bw) {
-                        val mean = (blockSat[ay * bw + ax] + blockSat[oy * bw + ox]) / 2
-                        if (mean < best) best = mean
-                        pairs++
+                if (by in 1 until bh - 1 && bx in 1 until bw - 1) continue
+                var sum = 0
+                var cnt = 0
+                for (ny in max(0, by - 1)..min(bh - 1, by + 1)) {
+                    for (nx in max(0, bx - 1)..min(bw - 1, bx + 1)) {
+                        if (nx == bx && ny == by) continue
+                        sum += blockSat[ny * bw + nx]
+                        cnt++
                     }
                 }
-                blockBg[by * bw + bx] = if (pairs > 0) {
-                    best / (BLOCK * BLOCK)
-                } else {
-                    // Frame corner: no opposing pair exists; fall back to a
-                    // plain mean of the available neighbors.
-                    var sum = 0
-                    var cnt = 0
-                    for (ny in max(0, by - 1)..min(bh - 1, by + 1)) {
-                        for (nx in max(0, bx - 1)..min(bw - 1, bx + 1)) {
-                            if (nx == bx && ny == by) continue
-                            sum += blockSat[ny * bw + nx]
-                            cnt++
-                        }
-                    }
-                    if (cnt > 0) sum / (cnt * BLOCK * BLOCK) else 0
-                }
+                blockBg[by * bw + bx] = if (cnt > 0) sum / (cnt * BLOCK * BLOCK) else 0
             }
         }
         for (y in 0 until height) {
