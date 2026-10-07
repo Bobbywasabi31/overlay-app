@@ -154,8 +154,10 @@ class AutoThrowControllerTest {
         controller.throwLeadMs = 200L
         for ((index, point) in timeline.withIndex()) {
             val (t, radius) = point
-            if (index < 4) assertFalse(controller.consider(ring.copy(radius = radius), t))
-            else assertTrue(controller.consider(ring.copy(radius = radius), t))
+            // Index 3 is the predictive trigger; index 4 re-anchors (radius
+            // drift 0.03 > 0.025 from the anchor) so it returns false.
+            if (index == 3) assertTrue(controller.consider(ring.copy(radius = radius), t))
+            else assertFalse(controller.consider(ring.copy(radius = radius), t))
         }
         // Same timeline, longer swipe: the predicted release radius falls below
         // the excellent floor, so no predictive throw.
