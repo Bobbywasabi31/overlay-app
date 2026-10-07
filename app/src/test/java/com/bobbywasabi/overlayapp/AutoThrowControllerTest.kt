@@ -111,6 +111,61 @@ class AutoThrowControllerTest {
         controller.disarm()
         assertFalse(controller.canBeginHold(1000))
     }
+    @Test fun shrinkPredictionTriggersBeforeRadiusGate() {
+        controller.arm()
+        // Steady shrink of 0.1/s; with the default 200ms lead the controller
+        // should fire while the ring is still above maxThrowRadius.
+        val t0 = 1000L
+        for (i in 0..8) {
+            val t = t0 + i * 50L
+            val radius = 0.12f - 0.0001f * (t - t0).toFloat()
+            assertFalse(controller.consider(ring.copy(radius = radius), t))
+        }
+        val trigger = t0 + 9 * 50L
+        val triggerRadius = 0.12f - 0.0001f * (trigger - t0).toFloat()
+        assertTrue(triggerRadius > AutoThrowController.EXCELLENT_RADIUS_MAX)
+        assertTrue(controller.consider(ring.copy(radius = triggerRadius), trigger))
+    }
+    @Test fun growingRingNeverTriggersPredictiveThrow() {
+        controller.arm()
+        val t0 = 1000L
+        for (i in 0..19) {
+            val t = t0 + i * 50L
+            val radius = 0.05f + 0.0001f * (t - t0).toFloat()
+            assertFalse(controller.consider(ring.copy(radius = radius), t))
+        }
+    }
+    @Test fun jitteryRadiusVetoesPrediction() {
+        controller.arm()
+        val t0 = 1000L
+        for (i in 0..9) {
+            val t = t0 + i * 50L
+            val jitter = if (i % 2 == 0) 0f else 0.016f
+            val radius = 0.11f - 0.00005f * (t - t0).toFloat() + jitter
+            assertFalse(controller.consider(ring.copy(radius = radius), t))
+        }
+    }
+    @Test fun predictionFollowsThrowLeadTime() {
+        // Shrink of 0.15/s; at t=1150 the ring is at 0.0775, still above the gate.
+        val timeline = longArrayOf(1000, 1050, 1100, 1150, 1200).map { t ->
+            t to 0.10f - 0.00015f * (t - 1000).toFloat()
+        }
+        controller.arm()
+        controller.throwLeadMs = 200L
+        for ((index, point) in timeline.withIndex()) {
+            val (t, radius) = point
+            if (index < 4) assertFalse(controller.consider(ring.copy(radius = radius), t))
+            else assertTrue(controller.consider(ring.copy(radius = radius), t))
+        }
+        // Same timeline, longer swipe: the predicted release radius falls below
+        // the excellent floor, so no predictive throw.
+        val second = AutoThrowController()
+        second.arm()
+        second.throwLeadMs = 600L
+        for ((t, radius) in timeline) {
+            assertFalse(second.consider(ring.copy(radius = radius), t))
+        }
+    }
     @Test fun holdingCannotBypassObservedAbsenceOrCooldown() {
         controller.arm()
         controller.beginThrow(ready(1000))

@@ -285,6 +285,9 @@ class OverlayService : Service() {
             ThrowState.disarm()
             return
         }
+        // The ring keeps shrinking while the swipe runs; the controller predicts
+        // the radius at gesture release from the swipe duration.
+        controller.throwLeadMs = ThrowState.durationMs
         val ready = controller.consider(ring, frameTime)
         if (ThrowState.dryRun) {
             dryRunStep(ball, ring, ready, frameTime, size)
