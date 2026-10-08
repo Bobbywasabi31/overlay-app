@@ -20,6 +20,20 @@ REGION_Y1 = 0.82
 BLOCK = 4
 HP_SATURATION = 25
 MIN_BRIGHTNESS = 75
+# --- arc-fallback constants (task 20; must match ScreenAnalyzer.kt) ---
+ARC_MIN_FRAG_PX = 8
+ARC_MAX_SEEDS = 12
+ARC_REFIT_ITERS = 3
+ARC_REFIT_MIN_PTS = 12
+ARC_MIN_INLIERS = 32
+ARC_MIN_COVERAGE = 0.625  # 15 of 24 sectors: rejects a half-ring (14), accepts distributed fragments
+# Annulus fill: fraction of the tol-band around the fitted circle occupied by
+# mask points. True rings: 0.5-0.9; dense noise false-positives: ~bg density
+# (0.11-0.15 measured). Kills pair-seeded hallucinations on noise.
+ARC_MIN_ANNULUS_FILL = 0.30
+ARC_MAX_PAIR_SEEDS = 6  # pairs only among the largest fragments (15 pairs max)
+ARC_MAX_TIGHTNESS = 0.08
+ARC_CONFIDENCE_CAP = 0.85
 
 
 def is_ring_hue(red, green, blue, delta):
@@ -112,6 +126,10 @@ def analyze(pixels, width, height):
                     and high >= MIN_BRIGHTNESS
                     and is_ring_hue(r, g, b, sat)):
                 mask[base + xx] = 1
+
+    # Snapshot the mask: the component loop below destroys it, and the
+    # arc-fallback pass (task 20) needs the surviving points afterwards.
+    mask_snap = bytearray(mask)
 
     # Connected components (8-connectivity), gate sequence mirrors Kotlin.
     best = None
@@ -220,4 +238,160 @@ def analyze(pixels, width, height):
         if score > best_score:
             best_score = score
             best = ring
-    return best, {"candidates": candidates, "rejected": rejected}
+    fallback = "not_run"
+    if best is None:
+        # Fragment-tolerant arc pass (task 20): only when the
+        # connected-component pass found nothing.
+        best = arc_fallback(pixels, width, height, mask_snap)
+        fallback = "hit" if best is not None else "miss"
+    return best, {"candidates": candidates, "rejected": rejected, "fallback": fallback}
+
+
+def kasa_fit(pts):
+    """Algebraic (Kasa) least-squares circle fit. Returns (cx, cy, r) or None."""
+    if len(pts) < 6:
+        return None
+    m11 = m12 = m13 = m22 = m23 = m33 = 0.0
+    v1 = v2 = v3 = 0.0
+    for (x, y) in pts:
+        z = -(x * x + y * y)
+        m11 += x * x
+        m12 += x * y
+        m13 += x
+        m22 += y * y
+        m23 += y
+        m33 += 1.0
+        v1 += x * z
+        v2 += y * z
+        v3 += z
+
+    def det3(a, b, c, d, e, f, g, h, i):
+        return a * (e * i - f * h) - b * (d * i - f * g) + c * (d * h - e * g)
+
+    det = det3(m11, m12, m13, m12, m22, m23, m13, m23, m33)
+    if abs(det) < 1e-9:
+        return None
+    a = det3(v1, m12, m13, v2, m22, m23, v3, m23, m33) / det
+    b = det3(m11, v1, m13, m12, v2, m23, m13, v3, m33) / det
+    c = det3(m11, m12, v1, m12, m22, v2, m13, m23, v3) / det
+    rr = (a * a + b * b) / 4.0 - c
+    if rr <= 0:
+        return None
+    return (-a / 2.0, -b / 2.0, math.sqrt(rr))
+
+
+def arc_fallback(pixels, width, height, mask):
+    """Fragment-tolerant second pass over the surviving mask points.
+
+    Seeds an algebraic circle fit from each large fragment, refits against
+    all mask points near the circle, and accepts on inlier count, angular
+    coverage, radial tightness, and the thin-ring interior check. Main-pass
+    gates (radius, center region) are unchanged; nothing is loosened.
+    """
+    short_side = min(width, height)
+    r_min = max(4.0, short_side * 0.009)
+    r_max = short_side * 0.38
+    # All surviving mask points (for the inlier refit).
+    pts = []
+    for i in range(width * height):
+        if mask[i]:
+            pts.append((i % width, i // width))
+    # Fragment them (8-connectivity); destroys the snapshot copy.
+    frags = []
+    queue = [0] * (width * height)
+    for seed in range(width * height):
+        if mask[seed] == 0:
+            continue
+        head, tail = 0, 1
+        queue[0] = seed
+        mask[seed] = 0
+        while head < tail:
+            index = queue[head]
+            head += 1
+            px = index % width
+            py = index // width
+            for ny in range(max(0, py - 1), min(height - 1, py + 1) + 1):
+                for nx in range(max(0, px - 1), min(width - 1, px + 1) + 1):
+                    neighbor = ny * width + nx
+                    if mask[neighbor] != 0:
+                        mask[neighbor] = 0
+                        queue[tail] = neighbor
+                        tail += 1
+        if tail >= ARC_MIN_FRAG_PX:
+            frags.append([(queue[i] % width, queue[i] // width) for i in range(tail)])
+    frags.sort(key=len, reverse=True)
+    top = frags[:ARC_MAX_SEEDS]
+    pair_top = frags[:ARC_MAX_PAIR_SEEDS]
+    # Single-fragment seeds, then fragment PAIRS: Kasa is badly biased on
+    # short arcs (a 47-degree arc fits r=22 instead of 44), so pairs of arcs
+    # constrain the circle before the refit.
+    seeds = [[f] for f in top]
+    for i in range(len(pair_top)):
+        for j in range(i + 1, len(pair_top)):
+            seeds.append([pair_top[i], pair_top[j]])
+
+    def try_seed(seed_pts):
+        fit = kasa_fit(seed_pts)
+        if fit is None:
+            return None
+        cx, cy, r = fit
+        for _ in range(ARC_REFIT_ITERS):
+            if not (r_min <= r <= r_max):
+                return None
+            tol = max(1.5, 0.05 * r)
+            inl = [p for p in pts if abs(math.hypot(p[0] - cx, p[1] - cy) - r) <= tol]
+            if len(inl) < ARC_REFIT_MIN_PTS:
+                return None
+            fit = kasa_fit(inl[:: max(1, len(inl) // 800)])
+            if fit is None:
+                return None
+            cx, cy, r = fit
+        if not (r_min <= r <= r_max):
+            return None
+        if not (REGION_X0 <= cx / width <= REGION_X1 and REGION_Y0 <= cy / height <= REGION_Y1):
+            return None
+        tol = max(1.5, 0.05 * r)
+        inl = [p for p in pts if abs(math.hypot(p[0] - cx, p[1] - cy) - r) <= tol]
+        if len(inl) < ARC_MIN_INLIERS:
+            return None
+        sectors = 0
+        ssq = 0.0
+        sat_sum = 0.0
+        for (x, y) in inl:
+            d = math.hypot(x - cx, y - cy)
+            ssq += (d - r) ** 2
+            sector = int(((math.atan2(y - cy, x - cx) + math.pi) / (2 * math.pi)) * 24)
+            sectors |= 1 << min(sector, 23)
+            rr, gg, bb = pixels[y * width + x]
+            sat_sum += max(rr, max(gg, bb)) - min(rr, min(gg, bb))
+        tightness = math.sqrt(ssq / len(inl)) / r
+        coverage = bin(sectors).count("1") / 24.0
+        annulus_fill = len(inl) / (2 * math.pi * r * 2 * tol)
+        if (coverage < ARC_MIN_COVERAGE or tightness > ARC_MAX_TIGHTNESS
+                or annulus_fill < ARC_MIN_ANNULUS_FILL):
+            return None
+        # Thin-ring interior check: same rule as the main pass.
+        ring_sat = sat_sum / len(inl)
+        vivid_inside = 0
+        inside_total = 0
+        for k in range(8):
+            angle = k * math.pi / 4
+            ix = int(cx + math.cos(angle) * r * 0.55)
+            iy = int(cy + math.sin(angle) * r * 0.55)
+            if 0 <= ix < width and 0 <= iy < height:
+                inside_total += 1
+                rr, gg, bb = pixels[iy * width + ix]
+                if max(rr, max(gg, bb)) - min(rr, min(gg, bb)) > ring_sat * 0.8:
+                    vivid_inside += 1
+        if vivid_inside > inside_total // 2:
+            return None
+        confidence = min(ARC_CONFIDENCE_CAP, (1.0 - tightness / 0.12) * coverage)
+        return (cx / width, cy / height, r / short_side, confidence)
+
+    best = None
+    for seed in seeds:
+        seed_pts = [p for frag in seed for p in frag]
+        ring = try_seed(seed_pts)
+        if ring is not None and (best is None or ring[3] > best[3]):
+            best = ring
+    return best

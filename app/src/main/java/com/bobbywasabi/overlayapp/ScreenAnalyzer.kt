@@ -1,6 +1,7 @@
 package com.bobbywasabi.overlayapp
 
 import kotlin.math.PI
+import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.hypot
@@ -17,6 +18,16 @@ class ScreenAnalyzer {
     private var queue = IntArray(0)
     private var blockSat = IntArray(0)
     private var blockBg = IntArray(0)
+    // Arc-fallback scratch (task 20): every mask pixel visited by the main
+    // flood fill, plus the surviving fragments as (start, length) slices.
+    private var arcPts = IntArray(0)
+    private var arcInliers = IntArray(0)
+    private val arcFrags = ArrayList<Frag>()
+    private var arcCount = 0
+    private var arcSeedsTried = 0
+
+    /** A surviving mask fragment: arcPts entries [start, start+length). */
+    private data class Frag(val start: Int, val length: Int)
 
     /** Per-frame diagnostics for the debug HUD (items 21, 85). */
     data class Stats(
@@ -35,6 +46,13 @@ class ScreenAnalyzer {
             mask = ByteArray(count)
             queue = IntArray(count)
         }
+        if (arcPts.size != count) {
+            arcPts = IntArray(count)
+            arcInliers = IntArray(count)
+        }
+        arcCount = 0
+        arcFrags.clear()
+        arcSeedsTried = 0
         // Only rings centered in the middle of the frame can ever be accepted
         // (see the cx/cy checks below). The vivid pre-check stays regional:
         // any acceptable ring has vivid pixels in the center region. But the
@@ -153,6 +171,9 @@ class ScreenAnalyzer {
             var maxY = 0
             while (head < tail) {
                 val index = queue[head++]
+                // Record every mask pixel for the arc fallback (task 20);
+                // fragments are contiguous slices of arcPts.
+                arcPts[arcCount++] = index
                 val px = index % width
                 val py = index / width
                 minX = min(minX, px)
@@ -169,6 +190,7 @@ class ScreenAnalyzer {
                     }
                 }
             }
+            if (tail >= ARC_MIN_FRAG_PX) arcFrags.add(Frag(arcCount - tail, tail))
             // Components touching the frame edge are clipped by the screen.
             if (tail < 16) { reject("tiny"); continue }
             if (minX == 0 || minY == 0 || maxX == width - 1 || maxY == height - 1) { reject("edge"); continue }
@@ -210,23 +232,9 @@ class ScreenAnalyzer {
             // Thin-ring verification: a solid disk's edge also high-passes as a
             // circle, so require the interior to be clearly less saturated than
             // the ring itself (relative, so a ring around a Pokemon still passes).
-            val ringSat = satSum / tail
-            var vividInside = 0
-            var insideTotal = 0
-            for (k in 0 until 8) {
-                val angle = k * PI / 4
-                val ix = (cx + cos(angle) * radius * 0.55).toInt()
-                val iy = (cy + sin(angle) * radius * 0.55).toInt()
-                if (ix in 0 until width && iy in 0 until height) {
-                    insideTotal++
-                    val color = pixels[iy * width + ix]
-                    val red = (color ushr 16) and 255
-                    val green = (color ushr 8) and 255
-                    val blue = color and 255
-                    if (max(red, max(green, blue)) - min(red, min(green, blue)) > ringSat * 0.8) vividInside++
-                }
+            if (interiorLooksLikeDisk(pixels, width, height, cx, cy, radius, satSum / tail)) {
+                reject("disk"); continue
             }
-            if (vividInside > insideTotal / 2) { reject("disk"); continue }
             val confidence = ((1 - relativeError / 0.15) * coverage).toFloat().coerceIn(0f, 1f)
             val ring = Ring((cx / width).toFloat(), (cy / height).toFloat(), (radius / shortSide).toFloat(), confidence)
             val score = confidence * 0.85f + ring.radius * 0.15f
@@ -235,6 +243,12 @@ class ScreenAnalyzer {
                 best = ring
             }
         }
+        // Fragment-tolerant arc fallback (task 20): only when the
+        // connected-component pass found nothing.
+        if (best == null) {
+            best = arcFallback(pixels, width, height)
+            if (arcSeedsTried > 0) rejected["arc"] = arcSeedsTried
+        }
         lastStats = Stats(
             analysisMs = (System.nanoTime() - startedNs) / 1_000_000,
             candidates = candidates,
@@ -242,6 +256,199 @@ class ScreenAnalyzer {
         )
         return best
     }
+
+    /**
+     * Thin-ring verification shared by both passes: true when the interior is
+     * clearly as saturated as the ring itself, i.e. the candidate is a solid
+     * disk rather than a ring. Relative to the ring's own saturation, so a
+     * ring around a Pokemon still passes.
+     */
+    private fun interiorLooksLikeDisk(
+        pixels: IntArray, width: Int, height: Int,
+        cx: Double, cy: Double, radius: Double, ringSat: Double,
+    ): Boolean {
+        var vividInside = 0
+        var insideTotal = 0
+        for (k in 0 until 8) {
+            val angle = k * PI / 4
+            val ix = (cx + cos(angle) * radius * 0.55).toInt()
+            val iy = (cy + sin(angle) * radius * 0.55).toInt()
+            if (ix in 0 until width && iy in 0 until height) {
+                insideTotal++
+                val color = pixels[iy * width + ix]
+                val red = (color ushr 16) and 255
+                val green = (color ushr 8) and 255
+                val blue = color and 255
+                if (max(red, max(green, blue)) - min(red, min(green, blue)) > ringSat * 0.8) vividInside++
+            }
+        }
+        return vividInside > insideTotal / 2
+    }
+
+    /**
+     * Fragment-tolerant second pass. On busy scenes the thin ring shatters
+     * into sub-threshold fragments that fail the main pass's aspect/shape
+     * gates individually but still lie on one circle. Seeds an algebraic
+     * (Kasa) circle fit from each large fragment (then fragment pairs — Kasa
+     * is biased toward small circles on short arcs), refits against all mask
+     * points near the circle, and accepts on inlier count, angular coverage,
+     * radial tightness, annulus fill, and the thin-ring interior check.
+     */
+    private fun arcFallback(pixels: IntArray, width: Int, height: Int): Ring? {
+        if (arcFrags.isEmpty()) return null
+        val shortSide = min(width, height)
+        val rMin = max(4.0, shortSide * 0.009)
+        val rMax = shortSide * 0.38
+        val bySize = arcFrags.sortedByDescending { it.length }
+        val singles = bySize.take(ARC_MAX_SEEDS)
+        val pairFrags = bySize.take(ARC_MAX_PAIR_SEEDS)
+        arcSeedsTried = singles.size + pairFrags.size * (pairFrags.size - 1) / 2
+        var best: Ring? = null
+        var bestConfidence = 0f
+        for (frag in singles) {
+            val ring = tryArcSeed(pixels, width, height, arcPts, frag.start, frag.start + frag.length,
+                rMin, rMax, shortSide)
+            if (ring != null && ring.confidence > bestConfidence) {
+                bestConfidence = ring.confidence
+                best = ring
+            }
+        }
+        for (i in pairFrags.indices) {
+            for (j in i + 1 until pairFrags.size) {
+                val a = pairFrags[i]
+                val b = pairFrags[j]
+                val pairPts = IntArray(a.length + b.length)
+                arcPts.copyInto(pairPts, 0, a.start, a.start + a.length)
+                arcPts.copyInto(pairPts, a.length, b.start, b.start + b.length)
+                val ring = tryArcSeed(pixels, width, height, pairPts, 0, pairPts.size,
+                    rMin, rMax, shortSide)
+                if (ring != null && ring.confidence > bestConfidence) {
+                    bestConfidence = ring.confidence
+                    best = ring
+                }
+            }
+        }
+        return best
+    }
+
+    /** Fits a circle to one seed and validates it against all mask points. */
+    private fun tryArcSeed(
+        pixels: IntArray, width: Int, height: Int,
+        seedPts: IntArray, seedFrom: Int, seedTo: Int,
+        rMin: Double, rMax: Double, shortSide: Int,
+    ): Ring? {
+        val seedFit = kasaCircleFit(seedPts, seedFrom, seedTo, 1, width) ?: return null
+        var cx = seedFit.first
+        var cy = seedFit.second
+        var r = seedFit.third
+        repeat(ARC_REFIT_ITERS) {
+            if (r < rMin || r > rMax) return null
+            val tol = max(1.5, 0.05 * r)
+            var n = 0
+            for (i in 0 until arcCount) {
+                val idx = arcPts[i]
+                val dx = idx % width - cx
+                val dy = idx / width - cy
+                if (abs(hypot(dx, dy) - r) <= tol) arcInliers[n++] = idx
+            }
+            if (n < ARC_REFIT_MIN_PTS) return null
+            val refit = kasaCircleFit(arcInliers, 0, n, max(1, n / 800), width) ?: return null
+            cx = refit.first
+            cy = refit.second
+            r = refit.third
+        }
+        if (r < rMin || r > rMax) return null
+        if (cx / width < REGION_X0 || cx / width > REGION_X1 ||
+            cy / height < REGION_Y0 || cy / height > REGION_Y1
+        ) return null
+        val tol = max(1.5, 0.05 * r)
+        var n = 0
+        for (i in 0 until arcCount) {
+            val idx = arcPts[i]
+            val dx = idx % width - cx
+            val dy = idx / width - cy
+            if (abs(hypot(dx, dy) - r) <= tol) arcInliers[n++] = idx
+        }
+        if (n < ARC_MIN_INLIERS) return null
+        var sectors = 0
+        var sumSq = 0.0
+        var satSum = 0.0
+        for (i in 0 until n) {
+            val idx = arcInliers[i]
+            val dx = idx % width - cx
+            val dy = idx / width - cy
+            val d = hypot(dx, dy)
+            sumSq += (d - r) * (d - r)
+            val sector = (((atan2(dy, dx) + PI) / (2 * PI)) * 24).toInt().coerceIn(0, 23)
+            sectors = sectors or (1 shl sector)
+            val color = pixels[idx]
+            val red = (color ushr 16) and 255
+            val green = (color ushr 8) and 255
+            val blue = color and 255
+            satSum += max(red, max(green, blue)) - min(red, min(green, blue))
+        }
+        val tightness = sqrt(sumSq / n) / r
+        val coverage = Integer.bitCount(sectors) / 24f
+        val annulusFill = n / (2 * PI * r * 2 * tol)
+        if (coverage < ARC_MIN_COVERAGE || tightness > ARC_MAX_TIGHTNESS ||
+            annulusFill < ARC_MIN_ANNULUS_FILL
+        ) return null
+        if (interiorLooksLikeDisk(pixels, width, height, cx, cy, r, satSum / n)) return null
+        val confidence = ((1.0 - tightness / 0.12) * coverage).toFloat().coerceIn(0f, ARC_CONFIDENCE_CAP)
+        return Ring(
+            (cx / width).toFloat(), (cy / height).toFloat(),
+            (r / shortSide).toFloat(), confidence,
+        )
+    }
+
+    /** Algebraic (Kasa) least-squares circle fit over pts entries [from, to), stride [step]. */
+    private fun kasaCircleFit(pts: IntArray, from: Int, to: Int, step: Int, width: Int): Triple<Double, Double, Double>? {
+        var m11 = 0.0
+        var m12 = 0.0
+        var m13 = 0.0
+        var m22 = 0.0
+        var m23 = 0.0
+        var m33 = 0.0
+        var v1 = 0.0
+        var v2 = 0.0
+        var v3 = 0.0
+        var count = 0
+        var i = from
+        while (i < to) {
+            val idx = pts[i]
+            val x = (idx % width).toDouble()
+            val y = (idx / width).toDouble()
+            val z = -(x * x + y * y)
+            m11 += x * x
+            m12 += x * y
+            m13 += x
+            m22 += y * y
+            m23 += y
+            m33 += 1.0
+            v1 += x * z
+            v2 += y * z
+            v3 += z
+            count++
+            i += step
+        }
+        if (count < 6) return null
+        val det = det3(m11, m12, m13, m12, m22, m23, m13, m23, m33)
+        if (abs(det) < 1e-9) return null
+        val a = det3(v1, m12, m13, v2, m22, m23, v3, m23, m33) / det
+        val b = det3(m11, v1, m13, m12, v2, m23, m13, v3, m33) / det
+        val c = det3(m11, m12, v1, m12, m22, v2, m13, m23, v3) / det
+        val rr = (a * a + b * b) / 4.0 - c
+        if (rr <= 0.0 || !rr.isFinite()) return null
+        val r = sqrt(rr)
+        if (!r.isFinite()) return null
+        return Triple(-a / 2.0, -b / 2.0, r)
+    }
+
+    private fun det3(
+        a: Double, b: Double, c: Double,
+        d: Double, e: Double, f: Double,
+        g: Double, h: Double, i: Double,
+    ): Double = a * (e * i - f * h) - b * (d * i - f * g) + c * (d * h - e * g)
 
     /** #14: true when any sampled pixel is vivid enough to belong to a ring. */
     private fun hasVividPixels(pixels: IntArray, width: Int, x0: Int, x1: Int, y0: Int, y1: Int): Boolean {
@@ -273,6 +480,32 @@ class ScreenAnalyzer {
         const val BLOCK = 4
         const val HP_SATURATION = 25
         const val MIN_BRIGHTNESS = 75
+        /**
+         * Fragment-tolerant arc fallback (task 20): second pass when the
+         * connected-component pass finds nothing. Seeds algebraic (Kasa)
+         * circle fits from surviving mask fragments, refits against all mask
+         * points near the circle, and accepts on inlier count, angular
+         * coverage, radial tightness, annulus fill, and the thin-ring
+         * interior check. Main-pass gates (radius, center region) are reused
+         * unchanged; nothing is loosened. Validated against benchmark/corpus
+         * (task 19) via the Python port before porting here.
+         */
+        const val ARC_MIN_FRAG_PX = 8
+        const val ARC_MAX_SEEDS = 12
+        const val ARC_MAX_PAIR_SEEDS = 6
+        const val ARC_REFIT_ITERS = 3
+        const val ARC_REFIT_MIN_PTS = 12
+        const val ARC_MIN_INLIERS = 32
+        /** 15 of 24 sectors: rejects a half-ring (14), accepts distributed fragments. */
+        const val ARC_MIN_COVERAGE = 0.625f
+        const val ARC_MAX_TIGHTNESS = 0.08f
+        /**
+         * Fraction of the tolerance band around the fitted circle occupied by
+         * mask points. True rings measure 0.5-0.9; dense-noise hallucinations
+         * sit near the background mask density (0.11-0.15 measured).
+         */
+        const val ARC_MIN_ANNULUS_FILL = 0.30f
+        const val ARC_CONFIDENCE_CAP = 0.85f
     }
 
     /**

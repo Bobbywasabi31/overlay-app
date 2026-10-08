@@ -35,12 +35,26 @@ Full per-case table from `python3 run_benchmark.py`; the one miss:
 
 - `real-red-ring-grass` — the genuine real-world hard case (a different public
   red-ring encounter shot than the 2026-10-03 one; same class as the miss the
-  2026-10-08 investigation found). Diagnosis: on this 295px-wide JPEG the ring
-  is anti-aliased and faint — only 9 of 1372 annulus pixels pass the mask
-  (1343 killed by the local-contrast high-pass, 20 by the hue gate, 0 by
-  brightness). The surviving fragments die as tiny/aspect/shape components.
-  This is the fragmentation problem task 20 (fragment-tolerant arc-fallback
-  pass) is meant to move. The hue gate is innocent.
+  2026-10-08 investigation found). Diagnosis: the ring survives the mask as
+  arc fragments that die as tiny/aspect/shape components in the
+  connected-component pass. This is the fragmentation problem task 20
+  (fragment-tolerant arc-fallback pass) is meant to move. The hue gate is
+  innocent. NOTE: the original hand label for this case pointed at the sky
+  (cy 0.358); re-measured 2026-10-08 against the visible ring (0.478, 0.483).
+
+## Task 20 update (2026-10-08): arc-fallback pass
+
+**22/22 pass** — 17/17 positives detected, 5/5 negatives correctly rejected.
+When the connected-component pass finds nothing, `ScreenAnalyzer` (and the
+port) now runs a fragment-tolerant second pass: Kasa algebraic circle fits
+seeded from each large mask fragment (plus fragment pairs — Kasa is biased
+toward small circles on short arcs), refit against all mask points near the
+circle, accepted on inlier count (≥32), angular coverage (≥15/24 sectors —
+a half-ring scores 14 and stays rejected), radial tightness (≤0.08), annulus
+fill (≥0.30 — kills pair-seeded hallucinations on dense noise, measured
+0.11–0.15 there vs 0.5–0.9 on true rings), and the thin-ring interior check.
+Main-pass gates (radius, center region) are reused unchanged. Confidence is
+capped at 0.85 so the main pass keeps precedence.
 
 Known notes:
 

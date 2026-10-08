@@ -1,1 +1,393 @@
-{"_note":"Labeled ring-detection benchmark corpus. Synthetic cases are generated deterministically by generate_corpus.py (see 'seed'). Real cases are public encounter screenshots under corpus/real/ with approximate hand labels — scored with looser tolerances. 'expect' is detect|reject.","cases":[{"background":"clean","draw":"ring","expect":"detect","id":"syn-red-clean-mid","kind":"synthetic","ring":{"color":[235,60,60],"cx":0.5,"cy":0.5,"radius_frac":0.1,"thickness":4},"seed":101},{"background":"clean","draw":"ring","expect":"detect","id":"syn-red-clean-small","kind":"synthetic","ring":{"color":[235,60,60],"cx":0.5,"cy":0.5,"radius_frac":0.05,"thickness":3},"seed":102},{"background":"grass","draw":"ring","expect":"detect","id":"syn-red-grass-mid","kind":"synthetic","ring":{"color":[235,60,60],"cx":0.5,"cy":0.5,"radius_frac":0.1,"thickness":4},"seed":103},{"background":"busy","draw":"ring","expect":"detect","id":"syn-red-busy-mid","kind":"synthetic","ring":{"color":[235,60,60],"cx":0.5,"cy":0.55,"radius_frac":0.1,"thickness":4},"seed":104},{"background":"clean","draw":"ring","expect":"detect","id":"syn-yellow-clean-mid","kind":"synthetic","ring":{"color":[250,215,60],"cx":0.5,"cy":0.5,"radius_frac":0.1,"thickness":4},"seed":105},{"background":"grass","draw":"ring","expect":"detect","id":"syn-yellow-grass-mid","kind":"synthetic","ring":{"color":[250,215,60],"cx":0.5,"cy":0.5,"radius_frac":0.1,"thickness":4},"seed":106},{"background":"busy","draw":"ring","expect":"detect","id":"syn-yellow-busy-small","kind":"synthetic","ring":{"color":[250,215,60],"cx":0.5,"cy":0.55,"radius_frac":0.05,"thickness":3},"seed":107},{"background":"clean","draw":"ring","expect":"detect","id":"syn-orange-clean-mid","kind":"synthetic","ring":{"color":[250,140,40],"cx":0.5,"cy":0.5,"radius_frac":0.1,"thickness":4},"seed":108},{"background":"grass","draw":"ring","expect":"detect","id":"syn-orange-grass-large","kind":"synthetic","ring":{"color":[250,140,40],"cx":0.5,"cy":0.5,"radius_frac":0.22,"thickness":5},"seed":109},{"background":"busy","draw":"ring","expect":"detect","id":"syn-orange-busy-mid","kind":"synthetic","ring":{"color":[250,140,40],"cx":0.5,"cy":0.55,"radius_frac":0.1,"thickness":4},"seed":110},{"background":"clean","draw":"ring","expect":"detect","id":"syn-green-clean-mid","kind":"synthetic","ring":{"color":[60,200,80],"cx":0.5,"cy":0.5,"radius_frac":0.1,"thickness":4},"seed":111},{"background":"grass","draw":"ring","expect":"detect","id":"syn-green-grass-mid","kind":"synthetic","ring":{"color":[60,200,80],"cx":0.5,"cy":0.5,"radius_frac":0.1,"thickness":4},"seed":112},{"background":"busy","draw":"ring","expect":"detect","id":"syn-green-busy-large","kind":"synthetic","ring":{"color":[60,200,80],"cx":0.5,"cy":0.55,"radius_frac":0.2,"thickness":5},"seed":113},{"background":"grass","draw":"ring","expect":"detect","id":"syn-red-offcenter","kind":"synthetic","ring":{"color":[235,60,60],"cx":0.38,"cy":0.62,"radius_frac":0.08,"thickness":4},"seed":114},{"background":"clean","draw":"ring","expect":"detect","id":"syn-yellow-offcenter","kind":"synthetic","ring":{"color":[250,215,60],"cx":0.62,"cy":0.4,"radius_frac":0.12,"thickness":4},"seed":115},{"background":"clean","draw":"disk","expect":"reject","id":"neg-solid-disk","kind":"synthetic","ring":{"color":[235,60,60],"cx":0.5,"cy":0.5,"radius_frac":0.1},"seed":201},{"background":"clean","draw":"ring","expect":"reject","id":"neg-cyan-ring","kind":"synthetic","ring":{"color":[40,210,210],"cx":0.5,"cy":0.5,"radius_frac":0.1,"thickness":4},"seed":202},{"background":"clean","draw":"none","expect":"reject","id":"neg-blank-gray","kind":"synthetic","seed":203},{"background":"grass","draw":"none","expect":"reject","id":"neg-grass-no-ring","kind":"synthetic","seed":204},{"background":"busy","draw":"none","expect":"reject","id":"neg-busy-no-ring","kind":"synthetic","seed":205},{"expect":"detect","file":"corpus/real/encounter_red_ring.jpg","id":"real-red-ring-grass","kind":"real","ring":{"cx":0.505,"cy":0.358,"radius_frac":0.125},"source":{"media_url":"https://gamedrive.jp/img/1433/pgo_20180411_005.jpg","note":"Public 2018 encounter screenshot; red target ring, grass background.","page_url":"https://gamedrive.jp/news/1523423515"}},{"expect":"detect","file":"corpus/real/encounter_orange_ring.png","id":"real-orange-ring-sandy","kind":"real","ring":{"cx":0.5,"cy":0.517,"radius_frac":0.102},"source":{"media_url":"https://www.videospokemongo.com/wp-content/uploads/2026/03/a0da59tdh7qg1.png","note":"Public catch-screen screenshot; orange/yellow target ring on sandy ground.","page_url":"https://www.videospokemongo.com/729517/pokemon-catch-bonus/"}}],"tolerances":{"real":{"center_frac":0.1,"radius_rel":0.4},"synthetic":{"center_frac":0.05,"radius_rel":0.3}}}
+{
+ "_note": "Labeled ring-detection benchmark corpus. Synthetic cases are generated deterministically by generate_corpus.py (see 'seed'). Real cases are public encounter screenshots under corpus/real/ with approximate hand labels \u2014 scored with looser tolerances. 'expect' is detect|reject.",
+ "cases": [
+  {
+   "background": "clean",
+   "draw": "ring",
+   "expect": "detect",
+   "id": "syn-red-clean-mid",
+   "kind": "synthetic",
+   "ring": {
+    "color": [
+     235,
+     60,
+     60
+    ],
+    "cx": 0.5,
+    "cy": 0.5,
+    "radius_frac": 0.1,
+    "thickness": 4
+   },
+   "seed": 101
+  },
+  {
+   "background": "clean",
+   "draw": "ring",
+   "expect": "detect",
+   "id": "syn-red-clean-small",
+   "kind": "synthetic",
+   "ring": {
+    "color": [
+     235,
+     60,
+     60
+    ],
+    "cx": 0.5,
+    "cy": 0.5,
+    "radius_frac": 0.05,
+    "thickness": 3
+   },
+   "seed": 102
+  },
+  {
+   "background": "grass",
+   "draw": "ring",
+   "expect": "detect",
+   "id": "syn-red-grass-mid",
+   "kind": "synthetic",
+   "ring": {
+    "color": [
+     235,
+     60,
+     60
+    ],
+    "cx": 0.5,
+    "cy": 0.5,
+    "radius_frac": 0.1,
+    "thickness": 4
+   },
+   "seed": 103
+  },
+  {
+   "background": "busy",
+   "draw": "ring",
+   "expect": "detect",
+   "id": "syn-red-busy-mid",
+   "kind": "synthetic",
+   "ring": {
+    "color": [
+     235,
+     60,
+     60
+    ],
+    "cx": 0.5,
+    "cy": 0.55,
+    "radius_frac": 0.1,
+    "thickness": 4
+   },
+   "seed": 104
+  },
+  {
+   "background": "clean",
+   "draw": "ring",
+   "expect": "detect",
+   "id": "syn-yellow-clean-mid",
+   "kind": "synthetic",
+   "ring": {
+    "color": [
+     250,
+     215,
+     60
+    ],
+    "cx": 0.5,
+    "cy": 0.5,
+    "radius_frac": 0.1,
+    "thickness": 4
+   },
+   "seed": 105
+  },
+  {
+   "background": "grass",
+   "draw": "ring",
+   "expect": "detect",
+   "id": "syn-yellow-grass-mid",
+   "kind": "synthetic",
+   "ring": {
+    "color": [
+     250,
+     215,
+     60
+    ],
+    "cx": 0.5,
+    "cy": 0.5,
+    "radius_frac": 0.1,
+    "thickness": 4
+   },
+   "seed": 106
+  },
+  {
+   "background": "busy",
+   "draw": "ring",
+   "expect": "detect",
+   "id": "syn-yellow-busy-small",
+   "kind": "synthetic",
+   "ring": {
+    "color": [
+     250,
+     215,
+     60
+    ],
+    "cx": 0.5,
+    "cy": 0.55,
+    "radius_frac": 0.05,
+    "thickness": 3
+   },
+   "seed": 107
+  },
+  {
+   "background": "clean",
+   "draw": "ring",
+   "expect": "detect",
+   "id": "syn-orange-clean-mid",
+   "kind": "synthetic",
+   "ring": {
+    "color": [
+     250,
+     140,
+     40
+    ],
+    "cx": 0.5,
+    "cy": 0.5,
+    "radius_frac": 0.1,
+    "thickness": 4
+   },
+   "seed": 108
+  },
+  {
+   "background": "grass",
+   "draw": "ring",
+   "expect": "detect",
+   "id": "syn-orange-grass-large",
+   "kind": "synthetic",
+   "ring": {
+    "color": [
+     250,
+     140,
+     40
+    ],
+    "cx": 0.5,
+    "cy": 0.5,
+    "radius_frac": 0.22,
+    "thickness": 5
+   },
+   "seed": 109
+  },
+  {
+   "background": "busy",
+   "draw": "ring",
+   "expect": "detect",
+   "id": "syn-orange-busy-mid",
+   "kind": "synthetic",
+   "ring": {
+    "color": [
+     250,
+     140,
+     40
+    ],
+    "cx": 0.5,
+    "cy": 0.55,
+    "radius_frac": 0.1,
+    "thickness": 4
+   },
+   "seed": 110
+  },
+  {
+   "background": "clean",
+   "draw": "ring",
+   "expect": "detect",
+   "id": "syn-green-clean-mid",
+   "kind": "synthetic",
+   "ring": {
+    "color": [
+     60,
+     200,
+     80
+    ],
+    "cx": 0.5,
+    "cy": 0.5,
+    "radius_frac": 0.1,
+    "thickness": 4
+   },
+   "seed": 111
+  },
+  {
+   "background": "grass",
+   "draw": "ring",
+   "expect": "detect",
+   "id": "syn-green-grass-mid",
+   "kind": "synthetic",
+   "ring": {
+    "color": [
+     60,
+     200,
+     80
+    ],
+    "cx": 0.5,
+    "cy": 0.5,
+    "radius_frac": 0.1,
+    "thickness": 4
+   },
+   "seed": 112
+  },
+  {
+   "background": "busy",
+   "draw": "ring",
+   "expect": "detect",
+   "id": "syn-green-busy-large",
+   "kind": "synthetic",
+   "ring": {
+    "color": [
+     60,
+     200,
+     80
+    ],
+    "cx": 0.5,
+    "cy": 0.55,
+    "radius_frac": 0.2,
+    "thickness": 5
+   },
+   "seed": 113
+  },
+  {
+   "background": "grass",
+   "draw": "ring",
+   "expect": "detect",
+   "id": "syn-red-offcenter",
+   "kind": "synthetic",
+   "ring": {
+    "color": [
+     235,
+     60,
+     60
+    ],
+    "cx": 0.38,
+    "cy": 0.62,
+    "radius_frac": 0.08,
+    "thickness": 4
+   },
+   "seed": 114
+  },
+  {
+   "background": "clean",
+   "draw": "ring",
+   "expect": "detect",
+   "id": "syn-yellow-offcenter",
+   "kind": "synthetic",
+   "ring": {
+    "color": [
+     250,
+     215,
+     60
+    ],
+    "cx": 0.62,
+    "cy": 0.4,
+    "radius_frac": 0.12,
+    "thickness": 4
+   },
+   "seed": 115
+  },
+  {
+   "background": "clean",
+   "draw": "disk",
+   "expect": "reject",
+   "id": "neg-solid-disk",
+   "kind": "synthetic",
+   "ring": {
+    "color": [
+     235,
+     60,
+     60
+    ],
+    "cx": 0.5,
+    "cy": 0.5,
+    "radius_frac": 0.1
+   },
+   "seed": 201
+  },
+  {
+   "background": "clean",
+   "draw": "ring",
+   "expect": "reject",
+   "id": "neg-cyan-ring",
+   "kind": "synthetic",
+   "ring": {
+    "color": [
+     40,
+     210,
+     210
+    ],
+    "cx": 0.5,
+    "cy": 0.5,
+    "radius_frac": 0.1,
+    "thickness": 4
+   },
+   "seed": 202
+  },
+  {
+   "background": "clean",
+   "draw": "none",
+   "expect": "reject",
+   "id": "neg-blank-gray",
+   "kind": "synthetic",
+   "seed": 203
+  },
+  {
+   "background": "grass",
+   "draw": "none",
+   "expect": "reject",
+   "id": "neg-grass-no-ring",
+   "kind": "synthetic",
+   "seed": 204
+  },
+  {
+   "background": "busy",
+   "draw": "none",
+   "expect": "reject",
+   "id": "neg-busy-no-ring",
+   "kind": "synthetic",
+   "seed": 205
+  },
+  {
+   "expect": "detect",
+   "file": "corpus/real/encounter_red_ring.jpg",
+   "id": "real-red-ring-grass",
+   "kind": "real",
+   "ring": {
+    "cx": 0.478,
+    "cy": 0.483,
+    "radius_frac": 0.125
+   },
+   "source": {
+    "media_url": "https://gamedrive.jp/img/1433/pgo_20180411_005.jpg",
+    "note": "Public 2018 encounter screenshot; red target ring, grass background. Label re-measured 2026-10-08 (old label pointed at the sky).",
+    "page_url": "https://gamedrive.jp/news/1523423515"
+   }
+  },
+  {
+   "expect": "detect",
+   "file": "corpus/real/encounter_orange_ring.png",
+   "id": "real-orange-ring-sandy",
+   "kind": "real",
+   "ring": {
+    "cx": 0.5,
+    "cy": 0.517,
+    "radius_frac": 0.102
+   },
+   "source": {
+    "media_url": "https://www.videospokemongo.com/wp-content/uploads/2026/03/a0da59tdh7qg1.png",
+    "note": "Public catch-screen screenshot; orange/yellow target ring on sandy ground.",
+    "page_url": "https://www.videospokemongo.com/729517/pokemon-catch-bonus/"
+   }
+  }
+ ],
+ "tolerances": {
+  "real": {
+   "center_frac": 0.1,
+   "radius_rel": 0.4
+  },
+  "synthetic": {
+   "center_frac": 0.05,
+   "radius_rel": 0.3
+  }
+ }
+}

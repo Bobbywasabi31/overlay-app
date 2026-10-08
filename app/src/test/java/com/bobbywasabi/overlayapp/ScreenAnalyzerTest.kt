@@ -2,7 +2,9 @@ package com.bobbywasabi.overlayapp
 
 import org.junit.Assert.*
 import org.junit.Test
+import kotlin.math.PI
 import kotlin.math.abs
+import kotlin.math.atan2
 import kotlin.math.hypot
 import kotlin.random.Random
 
@@ -126,4 +128,51 @@ class ScreenAnalyzerTest {
     }
     @Test(expected = IllegalArgumentException::class)
     fun rejectsInvalidFrameDimensions() { analyzer.analyze(IntArray(4), 3, 3) }
+    @Test fun arcFallbackDetectsFragmentedRing() {
+        // Task 20: the ring shattered into wedge-separated arcs fails the main
+        // pass (each fragment's bbox is far from square) but the arc fallback
+        // fits one circle through the fragments. Erases 15 degrees per 72
+        // degrees of arc; the arithmetic matches the Python benchmark port.
+        val window = 72.0 / 360 * 2 * PI
+        val pixels = IntArray(width * height) { i ->
+            val x = i % width
+            val y = i / width
+            val angle = atan2((y - 220).toDouble(), (x - 120).toDouble())
+            val keep = abs(hypot(x - 120.0, y - 220.0) - 44.0) <= 2.0 &&
+                ((angle + 2 * PI) % window) < 57.0 / 360 * 2 * PI
+            if (keep) 0xffffd35a.toInt() else 0xff10141d.toInt()
+        }
+        val ring = requireNotNull(analyzer.analyze(pixels, width, height))
+        assertEquals(0.5f, ring.x, 0.02f)
+        assertEquals(0.55f, ring.y, 0.02f)
+        assertEquals(44f / width, ring.radius, 0.02f)
+        // Proves the fallback — not the main pass — found it.
+        assertTrue(analyzer.lastStats.rejected.containsKey("arc"))
+    }
+    @Test fun arcFallbackStaysSilentOnStructuredNoise() {
+        // Straight bars + scattered dots form real fragments (so the arc
+        // fallback runs) but no circle: the fit must stay silent. The dot
+        // pattern is arithmetic (not Random) so it is identical across
+        // platforms and reproducible in the Python benchmark port.
+        val pixels = IntArray(width * height) { i ->
+            val x = i % width
+            val y = i / width
+            if ((x * 73 + y * 149) % 211 < 3) green else 0xff10141d.toInt()
+        }
+        for (x in 40 until 200) {
+            pixels[100 * width + x] = green
+            pixels[300 * width + x] = green
+        }
+        for (y in 60 until 340) {
+            pixels[y * width + 60] = green
+            pixels[y * width + 180] = green
+        }
+        assertNull(analyzer.analyze(pixels, width, height))
+    }
+    @Test fun cleanRingDoesNotTouchArcFallback() {
+        // The main pass takes precedence: a clean ring must not run the fallback.
+        val ring = requireNotNull(analyzer.analyze(frame(), width, height))
+        assertTrue(ring.confidence > 0.7f)
+        assertFalse(analyzer.lastStats.rejected.containsKey("arc"))
+    }
 }
