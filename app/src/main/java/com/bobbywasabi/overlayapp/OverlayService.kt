@@ -91,6 +91,8 @@ class OverlayService : Service() {
     private var staleFrames = 0
     private var terminating = false
     private var terminalStatus: SessionState.Status? = null
+    /** Item 8: opt-in, local-only numeric stats log for ring-detection debugging. */
+    private var telemetry: SessionTelemetry.Session? = null
     private val throwObserver = Observer<Int> { renderThrowControls() }
     private val calibrationTimeout = Runnable { removeCalibration() }
     private data class DisplaySize(val width: Int, val height: Int, val rotation: Int)
@@ -203,6 +205,7 @@ class OverlayService : Service() {
         val tracker = RingTracker()
         val pixels = IntArray(width * height)
         var lastAnalysis = 0L
+        telemetry = SessionTelemetry.beginIfEnabled(this)
         reader.setOnImageAvailableListener({ source ->
             if (!active) return@setOnImageAvailableListener
             try {
@@ -216,7 +219,9 @@ class OverlayService : Service() {
                     lastAnalysis = now
                     val plane = it.planes[0]
                     RgbaFrame.copy(plane.buffer, it.width, it.height, plane.rowStride, plane.pixelStride, pixels)
-                    val ring = tracker.update(analyzer.analyze(pixels, it.width, it.height), now)
+                    val raw = analyzer.analyze(pixels, it.width, it.height)
+                    val ring = tracker.update(raw, now)
+                    telemetry?.logFrame(analyzer.lastStats, raw?.radius, ring?.radius)
                     mainHandler.post {
                         if (active) {
                             val delivered = SystemClock.elapsedRealtime()
@@ -597,6 +602,7 @@ class OverlayService : Service() {
         terminating = true
         setPhase(CapturePhase.STOPPING)
         ThrowState.resetSession()
+        closeTelemetry()
         guidance?.showRing(null)
         terminalStatus = SessionState.Status(if (error) SessionState.Phase.ERROR else SessionState.Phase.IDLE, message)
         SessionState.update(SessionState.Phase.STOPPING, R.string.status_stopping)
@@ -605,6 +611,7 @@ class OverlayService : Service() {
     override fun onDestroy() {
         terminating = true
         capturePhase = CapturePhase.IDLE
+        closeTelemetry()
         ThrowState.changes.removeObserver(throwObserver)
         ThrowState.resetSession()
         mainHandler.removeCallbacksAndMessages(null)
@@ -641,6 +648,12 @@ class OverlayService : Service() {
     }
     private fun cleanup(action: () -> Unit) {
         try { action() } catch (error: RuntimeException) { Log.w(TAG, "Capture cleanup failed", error) }
+    }
+    /** Item 8: flush + close the telemetry log; idempotent, safe to call twice. */
+    private fun closeTelemetry() {
+        val session = telemetry
+        telemetry = null
+        session?.end()
     }
     companion object {
         const val ACTION_START = "com.bobbywasabi.overlayapp.START"

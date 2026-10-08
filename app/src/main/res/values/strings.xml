@@ -101,5 +101,10 @@
     <string name="auto_hold_timeout">No stable ring appeared while holding the ball. Auto is off. Check the ball position and capture alignment before trying again.</string>
     <string name="demo_ring_hold">Ring: hold ball</string>
     <string name="demo_ring_always">Ring: always visible</string>
+    <string name="telemetry_title">Session telemetry</string>
+    <string name="telemetry_body">For ring-detection debugging: saves a numeric-only stats log on this device while capture runs \u2014 analysis time, candidate counts, rejection reasons, and the ring-radius series. No frames or screenshots are ever stored. Turning this off deletes all saved logs.</string>
+    <string name="telemetry_switch">Log session stats (opt-in)</string>
+    <string name="telemetry_on">Session telemetry on.</string>
+    <string name="telemetry_off">Session telemetry off. Saved logs deleted.</string>
     <string name="demo_small">Small pale ring</string>
 </resources>

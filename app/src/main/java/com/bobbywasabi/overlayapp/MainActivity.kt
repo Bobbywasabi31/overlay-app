@@ -90,6 +90,13 @@ class MainActivity : AppCompatActivity() {
         })
         ThrowState.changes.observe(this) { render() }
         SessionState.status.observe(this) { render() }
+        binding.telemetrySwitch.isChecked = SessionTelemetry.isEnabled(this)
+        binding.telemetrySwitch.setOnCheckedChangeListener { _, checked ->
+            SessionTelemetry.setEnabled(this, checked)
+            Toast.makeText(this,
+                if (checked) R.string.telemetry_on else R.string.telemetry_off,
+                Toast.LENGTH_SHORT).show()
+        }
         binding.killSwitchButton.setOnClickListener {
             if (ThrowState.killed) ThrowState.revive() else ThrowState.kill()
         }

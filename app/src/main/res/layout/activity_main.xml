@@ -55,6 +55,11 @@
             style="@style/Widget.MaterialComponents.Button.TextButton" android:layout_width="match_parent"
             android:layout_height="wrap_content" android:layout_marginTop="12dp" android:minHeight="52dp"
             android:text="@string/practice" android:textAllCaps="false" />
+        <TextView style="@style/SectionTitle" android:layout_marginTop="24dp" android:text="@string/telemetry_title" />
+        <TextView style="@style/BodyText" android:layout_marginTop="8dp" android:text="@string/telemetry_body" />
+        <com.google.android.material.switchmaterial.SwitchMaterial android:id="@+id/telemetrySwitch"
+            android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp"
+            android:minHeight="48dp" android:text="@string/telemetry_switch" android:textAllCaps="false" />
         <TextView style="@style/BodyText" android:layout_marginTop="12dp" android:text="@string/privacy" android:textSize="13sp" />
         <TextView style="@style/SectionTitle" android:layout_marginTop="28dp" android:text="@string/how_title" />
         <TextView style="@style/BodyText" android:layout_marginTop="12dp" android:text="@string/how_body" />

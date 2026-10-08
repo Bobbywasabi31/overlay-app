@@ -25,6 +25,17 @@ captures, what it never does, and which guardrails are enforced in CI.
   rules file, so app data (ball calibration, acknowledgement flags) never
   leaves the device through backup. CI fails the build if this changes.
 
+## Session telemetry (opt-in, off by default)
+
+A toggle in the main screen enables a per-session numeric stats log for
+ring-detection debugging (issue #13). While enabled, each analyzed frame
+appends one CSV row: relative timestamp, analysis time, candidate count,
+per-reason rejection counts, and the analyzer + tracker ring-radius series.
+Numeric only — no pixels, frames, or screenshots are ever stored. Logs live
+in the app-private files directory (never backed up, never leaves the
+device; the app has no network access), are pruned to the 10 most recent
+sessions, and are all deleted when the toggle is turned off.
+
 ## Session limits
 
 - A session **auto-stops after 10 minutes without a detection**, so a
