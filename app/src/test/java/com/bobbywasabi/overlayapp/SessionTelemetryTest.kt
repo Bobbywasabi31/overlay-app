@@ -93,7 +93,7 @@ class SessionTelemetryTest {
     @Test fun oldestSessionsPruned() {
         val dir = tempDir()
         repeat(SessionTelemetry.MAX_FILES + 3) { i ->
-            File(dir, "session-2026010%d-000000.csv".format(i)).writeText("x")
+            File(dir, "session-202601%02d-000000.csv".format(i)).writeText("x")
         }
         SessionTelemetry.begin(dir, clock = { 0L }).end()
         val remaining = dir.listFiles()!!.map { it.name }.sorted()
