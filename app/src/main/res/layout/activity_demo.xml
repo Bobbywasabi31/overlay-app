@@ -29,6 +29,9 @@
                 <com.google.android.material.button.MaterialButton android:id="@+id/movementButton"
                     android:layout_width="wrap_content" android:layout_height="wrap_content" android:minHeight="48dp"
                     android:text="@string/demo_movement" android:textAllCaps="false" />
+                <com.google.android.material.button.MaterialButton android:id="@+id/drillButton"
+                    android:layout_width="wrap_content" android:layout_height="wrap_content" android:minHeight="48dp"
+                    android:text="@string/demo_drill" android:textAllCaps="false" />
                 <com.google.android.material.button.MaterialButton android:id="@+id/backButton"
                     android:layout_width="wrap_content" android:layout_height="wrap_content" android:minHeight="48dp"
                     android:text="@string/demo_back" android:textAllCaps="false" />

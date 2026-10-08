@@ -10,6 +10,7 @@ import android.view.View
 import android.view.ViewConfiguration
 import kotlin.math.hypot
 import kotlin.math.max
+import kotlin.math.min
 
 /** Full-window canvas: injected display-coordinate swipes arrive as ordinary touch events. */
 class PracticeRingView @JvmOverloads constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs) {
@@ -27,11 +28,19 @@ class PracticeRingView @JvmOverloads constructor(context: Context, attrs: Attrib
     private var animating = false
     var touches = 0
         private set
-    var feedback: ((PracticeScene.Result?, Int, Int, Int) -> Unit)? = null
+    var feedback: ((PracticeScene.Result?, Int, Int, Int, PracticeScene.Timing?) -> Unit)? = null
 
     fun toggleSmallPale() { scene.smallPale = !scene.smallPale; restart() }
     fun toggleMovement() { scene.moving = !scene.moving; restart() }
     fun nextColor() { scene.colorIndex = (scene.colorIndex + 1) % colors.size; restart() }
+    /** Timing drill uses the standard vivid ring, so it turns small-pale off on enable. */
+    fun toggleTimingDrill(): Boolean {
+        scene.timingDrill = !scene.timingDrill
+        if (scene.timingDrill) scene.smallPale = false
+        scene.resetDrill()
+        restart()
+        return scene.timingDrill
+    }
     fun toggleRingMode(): Boolean {
         scene.ringOnHold = !scene.ringOnHold
         restart()
@@ -71,6 +80,14 @@ class PracticeRingView @JvmOverloads constructor(context: Context, attrs: Attrib
                 paint.strokeWidth = max(2f, width * if (scene.smallPale) 0.003f else 0.006f)
                 paint.color = if (scene.smallPale) 0xff9ed395.toInt() else colors[scene.colorIndex]
                 canvas.drawCircle(g.targetX, g.targetY, g.ringRadius, paint)
+                if (scene.timingDrill) {
+                    // Excellent-window guides so the eye can see the [min, max] release window.
+                    val short = min(width, height).toFloat()
+                    paint.strokeWidth = max(1f, width * 0.002f)
+                    paint.color = 0x66ffffff
+                    canvas.drawCircle(g.targetX, g.targetY, short * AutoThrowController.EXCELLENT_RADIUS_MAX, paint)
+                    canvas.drawCircle(g.targetX, g.targetY, short * AutoThrowController.EXCELLENT_RADIUS_MIN, paint)
+                }
             }
             paint.style = Paint.Style.FILL
             if (dragging) drawBall(canvas, fingerX, fingerY, g.ballRadius)
@@ -116,7 +133,7 @@ class PracticeRingView @JvmOverloads constructor(context: Context, attrs: Attrib
                 val g = scene.geometry(width, height, now)
                 dragging = scene.ready(now) && hypot(downX - g.ballX, downY - g.ballY) <= g.ballRadius * 1.4f
                 if (dragging) parent?.requestDisallowInterceptTouchEvent(true)
-                feedback?.invoke(null, touches, scene.attempts, scene.innerHits)
+                feedback?.invoke(null, touches, scene.attempts, scene.innerHits, scene.lastTiming)
                 invalidate()
             }
             MotionEvent.ACTION_MOVE -> if (dragging) {
@@ -128,7 +145,7 @@ class PracticeRingView @JvmOverloads constructor(context: Context, attrs: Attrib
                 if (dragging) {
                     val result = scene.submit(width, height, downX, downY, event.x, event.y, downTime, now,
                         movementStart ?: downTime, if (movementStart != null) 33 else 0)
-                    feedback?.invoke(result, touches, scene.attempts, scene.innerHits)
+                    feedback?.invoke(result, touches, scene.attempts, scene.innerHits, scene.lastTiming)
                 }
                 dragging = false
                 parent?.requestDisallowInterceptTouchEvent(false)

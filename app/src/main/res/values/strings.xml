@@ -107,4 +107,10 @@
     <string name="telemetry_on">Session telemetry on.</string>
     <string name="telemetry_off">Session telemetry off. Saved logs deleted.</string>
     <string name="demo_small">Small pale ring</string>
+    <string name="demo_drill">Timing drill</string>
+    <string name="demo_drill_on">Timing drill: ON</string>
+    <string name="demo_timing_early">Timing: too early — the ring will still be wide when the ball lands</string>
+    <string name="demo_timing_excellent">Timing: excellent window — release now!</string>
+    <string name="demo_timing_late">Timing: too late — the window closed or the ring reset</string>
+    <string name="demo_drill_feedback">%1$s · %2$s</string>
 </resources>

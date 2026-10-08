@@ -76,4 +76,48 @@ class PracticeSceneTest {
         scene.restart(1200)
         assertNull(scene.submit(1000, 2000, 500f, 1700f, 500f, 880f, 1200, 2500, 1850))
     }
+    @Test fun drillOffLeavesNoTimingVerdict() {
+        val scene = PracticeScene()
+        assertEquals(PracticeScene.Result.INNER_RING,
+            scene.submit(1000, 2000, 500f, 1700f, 500f, 880f, 3850, 4200))
+        assertNull(scene.lastTiming)
+        assertEquals(0, scene.drillAttempts)
+    }
+    /** Landing-time radius = radius at upMs + FLIGHT_MS, scored against [0.03, 0.07]. */
+    private fun drillThrow(scene: PracticeScene, upMs: Long): PracticeScene.Timing? {
+        scene.timingDrill = true
+        scene.submit(1000, 2000, 500f, 1700f, 500f, 880f, upMs - 350, upMs)
+        return scene.lastTiming
+    }
+    @Test fun drillEarlyWhenRingStillWideAtLanding() {
+        val scene = PracticeScene()
+        assertEquals(PracticeScene.Timing.EARLY, drillThrow(scene, 2000))
+        assertEquals(1, scene.drillAttempts)
+        assertEquals(0, scene.drillExcellents)
+    }
+    @Test fun drillExcellentInsideWindowIncludingEdge() {
+        val scene = PracticeScene()
+        assertEquals(PracticeScene.Timing.EXCELLENT, drillThrow(scene, 4200))
+        // landing at exactly phase 2/3: radius 0.07, the wide edge of the window.
+        val edge = PracticeScene()
+        assertEquals(PracticeScene.Timing.EXCELLENT, drillThrow(edge, 3500))
+    }
+    @Test fun drillLateWhenWindowClosedOrRingReset() {
+        val shrunk = PracticeScene()
+        assertEquals(PracticeScene.Timing.LATE, drillThrow(shrunk, 5200))
+        val reset = PracticeScene()
+        assertEquals(PracticeScene.Timing.LATE, drillThrow(reset, 5700))
+    }
+    @Test fun drillCountersAccumulateAndReset() {
+        val scene = PracticeScene()
+        scene.timingDrill = true
+        scene.submit(1000, 2000, 500f, 1700f, 500f, 880f, 3850, 4200)
+        scene.submit(1000, 2000, 500f, 1700f, 500f, 880f, 6650, 7000)
+        assertEquals(2, scene.drillAttempts)
+        assertEquals(1, scene.drillExcellents)
+        scene.resetDrill()
+        assertEquals(0, scene.drillAttempts)
+        assertEquals(0, scene.drillExcellents)
+        assertNull(scene.lastTiming)
+    }
 }

@@ -7,6 +7,9 @@ import kotlin.math.sin
 /** Screen-space encounter drill. Scores release position, not Pokémon GO's unknown ball physics. */
 class PracticeScene(startMs: Long = 0) {
     enum class Result { INNER_RING, OUTER_TARGET, MISS }
+    /** Release-time verdict for the excellent-timing drill: radius at landing (release + FLIGHT_MS)
+     *  against AutoThrowController's excellent window. EARLY = still too big; LATE = already closed or reset. */
+    enum class Timing { EARLY, EXCELLENT, LATE }
     data class Geometry(
         val targetX: Float, val targetY: Float, val ringRadius: Float, val targetRadius: Float,
         val ballX: Float, val ballY: Float, val ballRadius: Float,
@@ -16,9 +19,17 @@ class PracticeScene(startMs: Long = 0) {
     var moving = false
     var ringOnHold = true
     var colorIndex = 0
+    /** Timing drill: additionally scores whether the release would land while the ring is excellent. */
+    var timingDrill = false
     var attempts = 0
         private set
     var innerHits = 0
+        private set
+    var drillAttempts = 0
+        private set
+    var drillExcellents = 0
+        private set
+    var lastTiming: Timing? = null
         private set
     var release: Release? = null
         private set
@@ -31,11 +42,30 @@ class PracticeScene(startMs: Long = 0) {
         require(width > 0 && height > 0)
         val short = min(width, height).toFloat()
         val elapsed = (nowMs - cycleStart).coerceAtLeast(0)
-        val phase = (elapsed % CYCLE_MS).toFloat() / CYCLE_MS
-        val radius = if (smallPale) 0.055f - phase * 0.032f else 0.17f - phase * 0.15f
+        val radius = radiusAt(elapsed)
         val offset = if (moving) sin(elapsed / 2000.0).toFloat() * 0.07f else 0f
         return Geometry(width * (0.5f + offset), height * 0.44f, short * radius, short * 0.18f,
             width * 0.5f, height * 0.85f, short * 0.065f)
+    }
+
+    /** Normalized (short-side) ring radius this many ms into the current shrink cycle. */
+    private fun radiusAt(elapsedMs: Long): Float {
+        val phase = (elapsedMs % CYCLE_MS).toFloat() / CYCLE_MS
+        return if (smallPale) 0.055f - phase * 0.032f else 0.17f - phase * 0.15f
+    }
+
+    /** Scores the release against the ring radius at ball landing (FLIGHT_MS lead), matching the
+     *  prediction lead AutoThrowController uses. A cycle reset before landing means the window was missed. */
+    private fun scoreTiming(upMs: Long): Timing {
+        val elapsed = (upMs - cycleStart).coerceAtLeast(0)
+        val landingElapsed = elapsed + FLIGHT_MS
+        if (landingElapsed / CYCLE_MS > elapsed / CYCLE_MS) return Timing.LATE
+        val radius = radiusAt(landingElapsed)
+        return when {
+            radius > AutoThrowController.EXCELLENT_RADIUS_MAX -> Timing.EARLY
+            radius >= AutoThrowController.EXCELLENT_RADIUS_MIN -> Timing.EXCELLENT
+            else -> Timing.LATE
+        }
     }
 
     fun submit(width: Int, height: Int, startX: Float, startY: Float, endX: Float, endY: Float,
@@ -56,10 +86,18 @@ class PracticeScene(startMs: Long = 0) {
         release = Release(endX / width, endY / height, upMs, result)
         attempts++
         if (result == Result.INNER_RING) innerHits++
+        lastTiming = if (timingDrill) {
+            val timing = scoreTiming(upMs)
+            drillAttempts++
+            if (timing == Timing.EXCELLENT) drillExcellents++
+            timing
+        } else null
         return result
     }
 
     fun restart(nowMs: Long) { release = null; cycleStart = nowMs }
+
+    fun resetDrill() { drillAttempts = 0; drillExcellents = 0; lastTiming = null }
 
     companion object {
         const val CYCLE_MS = 6000L
