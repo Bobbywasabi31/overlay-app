@@ -40,6 +40,12 @@ jobs:
       - uses: gradle/actions/setup-gradle@v6
       - name: Test, lint, and build
         run: ./gradlew --no-daemon :app:testDebugUnitTest :app:checkCoverage :app:lintDebug :app:assembleDebug
+      - name: Benchmark (informational, never blocks)
+        # Task 21: the wall-clock analyzer benchmark is quarantined out of the
+        # gating tests because it flaked on shared CI runners. Timing is still
+        # recorded here, but a noisy runner can never fail the build.
+        continue-on-error: true
+        run: ./gradlew --no-daemon :app:benchmark
       - name: Assemble signed release APK when keystore secret exists
         env:
           THROW_ASSISTANT_KEYSTORE_B64: ${{ secrets.THROW_ASSISTANT_KEYSTORE_B64 }}

@@ -104,3 +104,23 @@ tasks.register("checkCoverage") {
         require(ratio >= 0.20) { "Coverage floor is 20%, measured ${"%.1f".format(ratio * 100)}%" }
     }
 }
+
+// Task 21: the wall-clock analyzer benchmark flaked on shared CI runners (hard
+// mean-time gate failed twice, green on rerun with no code change). Quarantine it:
+// AnalyzerTimingBenchmarkTest is excluded from the gating unit-test tasks and runs
+// in the separate `benchmark` task, which CI executes as informational
+// (continue-on-error) so a noisy runner can never fail the build.
+tasks.named<Test>("testDebugUnitTest") {
+    filter { excludeTestsMatching("com.bobbywasabi.overlayapp.AnalyzerTimingBenchmarkTest") }
+}
+tasks.named<Test>("testReleaseUnitTest") {
+    filter { excludeTestsMatching("com.bobbywasabi.overlayapp.AnalyzerTimingBenchmarkTest") }
+}
+tasks.register<Test>("benchmark") {
+    description = "Runs the wall-clock analyzer benchmark (informational; never gates the build)."
+    group = "verification"
+    val unitTest = tasks.named<Test>("testDebugUnitTest").get()
+    testClassesDirs = unitTest.testClassesDirs
+    classpath = unitTest.classpath
+    filter { includeTestsMatching("com.bobbywasabi.overlayapp.AnalyzerTimingBenchmarkTest") }
+}
