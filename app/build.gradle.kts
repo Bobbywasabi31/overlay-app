@@ -110,17 +110,22 @@ tasks.register("checkCoverage") {
 // AnalyzerTimingBenchmarkTest is excluded from the gating unit-test tasks and runs
 // in the separate `benchmark` task, which CI executes as informational
 // (continue-on-error) so a noisy runner can never fail the build.
-tasks.named<Test>("testDebugUnitTest") {
-    filter { excludeTestsMatching("com.bobbywasabi.overlayapp.AnalyzerTimingBenchmarkTest") }
-}
-tasks.named<Test>("testReleaseUnitTest") {
-    filter { excludeTestsMatching("com.bobbywasabi.overlayapp.AnalyzerTimingBenchmarkTest") }
+tasks.withType<Test>().configureEach {
+    if (name == "testDebugUnitTest" || name == "testReleaseUnitTest") {
+        filter { excludeTestsMatching("com.bobbywasabi.overlayapp.AnalyzerTimingBenchmarkTest") }
+    }
 }
 tasks.register<Test>("benchmark") {
     description = "Runs the wall-clock analyzer benchmark (informational; never gates the build)."
     group = "verification"
-    val unitTest = tasks.named<Test>("testDebugUnitTest").get()
-    testClassesDirs = unitTest.testClassesDirs
-    classpath = unitTest.classpath
     filter { includeTestsMatching("com.bobbywasabi.overlayapp.AnalyzerTimingBenchmarkTest") }
+}
+// AGP creates the unit-test tasks after evaluation, so the benchmark task borrows
+// the debug unit-test classpath once they exist.
+afterEvaluate {
+    val unitTest = tasks.named<Test>("testDebugUnitTest").get()
+    tasks.named<Test>("benchmark").configure {
+        testClassesDirs = unitTest.testClassesDirs
+        classpath = unitTest.classpath
+    }
 }
