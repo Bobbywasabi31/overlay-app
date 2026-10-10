@@ -30,7 +30,27 @@ python3 run_benchmark.py
 
 ## Baseline (2026-10-08, ScreenAnalyzer v0.4.13-era logic)
 
-**21/22 pass** — 16/17 positives detected, 5/5 negatives correctly rejected.
+## Telemetry summarizer
+
+- `summarize_telemetry.py` — reads the session-telemetry CSVs written by
+  `SessionTelemetry` (task 8, opt-in on the main screen) and prints a one-page
+  summary per file plus a combined summary: frame count/span/fps,
+  analysisMs mean/p95/max with spike count, candidate mean/max, detection and
+  tracked rates, per-reason rejection totals with the dominant reason, the
+  detected-radius series (min/max/mean + least-squares shrink rate per second,
+  mirroring `AutoThrowController`'s prediction input from task 4), and anomaly
+  notes (silent sessions, rejection dominance >80%, analysisMs spikes).
+  `--json` emits the combined summary as sorted-key JSON. Columns are matched
+  by name and unparseable rows are skipped and counted, so slightly drifted
+  formats still parse. Exit 0 when at least one valid row was summarized,
+  exit 2 otherwise.
+- `test_summarize_telemetry.py` — 32 self-contained checks (no pytest needed):
+  `python3 test_summarize_telemetry.py`.
+
+```sh
+python3 summarize_telemetry.py session-*.csv
+python3 summarize_telemetry.py --json session-*.csv
+```**21/22 pass** — 16/17 positives detected, 5/5 negatives correctly rejected.
 Full per-case table from `python3 run_benchmark.py`; the one miss:
 
 - `real-red-ring-grass` — the genuine real-world hard case (a different public
