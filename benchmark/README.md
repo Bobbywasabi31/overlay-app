@@ -50,7 +50,22 @@ python3 run_benchmark.py
 ```sh
 python3 summarize_telemetry.py session-*.csv
 python3 summarize_telemetry.py --json session-*.csv
-```**21/22 pass** — 16/17 positives detected, 5/5 negatives correctly rejected.
+```
+
+## Comparing two runs (before/after)
+
+`--vs` diffs the positional (target) session logs against a baseline set —
+the before/after story when a detection gate is retuned and the same
+encounter scenario is re-run:
+
+```sh
+python3 summarize_telemetry.py new-session.csv --vs old-session.csv
+```
+
+Prints numeric deltas per metric (target − baseline), per-reason rejection
+deltas sorted by |delta|, and a CHANGED flag when the dominant rejection
+reason moves. `--json --vs` embeds the same diff as the `"diff"` object.
+Exit 2 when the baseline parses to zero rows.**21/22 pass** — 16/17 positives detected, 5/5 negatives correctly rejected.
 Full per-case table from `python3 run_benchmark.py`; the one miss:
 
 - `real-red-ring-grass` — the genuine real-world hard case (a different public

@@ -14,7 +14,7 @@ import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from summarize_telemetry import (  # noqa: E402
-    parse_file, summarize, main, REASON_COLUMNS,
+    parse_file, summarize, main, REASON_COLUMNS, diff_summaries,
 )
 
 HEADER = ("tMs,analysisMs,candidates,"
@@ -145,5 +145,67 @@ res7 = parse_file(f7.name)
 check("reordered parse", res7.frames == 2, res7.frames)
 check("reordered detection", summarize(res7.rows)["detection_rate"] == 0.5)
 os.unlink(f7.name)
+
+# 8. --vs diffs target against baseline
+base_p = write_csv([frame(i * 16.7, radius=0.05 if i % 3 == 0 else -1.0,
+                          tracked=0.05 if i % 3 == 0 else -1.0, fill=6, shape=1)
+                    for i in range(90)])
+tgt_p = write_csv([frame(i * 16.7, radius=0.05 if i % 2 == 0 else -1.0,
+                         tracked=0.05 if i % 2 == 0 else -1.0, fill=1, shape=6)
+                   for i in range(90)])
+b = summarize(parse_file(base_p).rows)
+t = summarize(parse_file(tgt_p).rows)
+d = diff_summaries(b, t)
+check("diff detection delta positive", d["detection_rate"]["delta"] > 0,
+      d["detection_rate"])
+check("diff detection delta value",
+      abs(d["detection_rate"]["delta"]
+          - (round(45 / 90, 4) - round(30 / 90, 4))) < 1e-9,
+      d["detection_rate"]["delta"])
+check("diff fill delta negative", d["rejections"]["fill"]["delta"] < 0,
+      d["rejections"]["fill"])
+check("diff shape delta positive", d["rejections"]["shape"]["delta"] > 0,
+      d["rejections"]["shape"])
+dr = d["dominant_rejection"]
+check("diff dominant changed", dr["changed"] and dr["base"] == "fill"
+      and dr["target"] == "shape", dr)
+check("diff frames triple", d["frames"] == {"base": 90, "target": 90,
+                                            "delta": 0}, d["frames"])
+
+# silent baseline vs detecting target: radius mean delta must be None, not 0
+silent_p = write_csv([frame(i * 16.7, radius=-1.0, tracked=-1.0, tiny=3)
+                      for i in range(10)])
+d2 = diff_summaries(summarize(parse_file(silent_p).rows), t)
+check("diff None radius delta",
+      d2["radius"]["mean"]["delta"] is None, d2["radius"]["mean"])
+check("diff detected frames delta",
+      d2["radius"]["detected_frames"]["delta"] == 45 - 0,
+      d2["radius"]["detected_frames"])
+
+# CLI: --vs prints a DIFF block; --vs with empty baseline exits 2
+script = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                      "summarize_telemetry.py")
+proc = subprocess.run([sys.executable, script, tgt_p, "--vs", base_p],
+                      capture_output=True, text=True)
+check("vs exit 0", proc.returncode == 0, proc.stderr)
+check("vs DIFF block",
+      "DIFF" in proc.stdout and "dominant rej:" in proc.stdout
+      and "(CHANGED)" in proc.stdout, proc.stdout[:400])
+proc_j = subprocess.run([sys.executable, script, "--json", tgt_p,
+                         "--vs", base_p], capture_output=True, text=True)
+j3 = json.loads(proc_j.stdout)
+check("json diff embedded",
+      "diff" in j3 and j3["diff"]["dominant_rejection"]["changed"] is True)
+check("json diff rej delta",
+      j3["diff"]["rejections"]["fill"]["delta"] < 0)
+f_empty = tempfile.NamedTemporaryFile("w", suffix=".csv", delete=False)
+f_empty.close()
+proc_e = subprocess.run([sys.executable, script, tgt_p, "--vs",
+                         f_empty.name], capture_output=True, text=True)
+check("vs empty baseline exit 2", proc_e.returncode == 2, proc_e.stderr)
+os.unlink(base_p)
+os.unlink(tgt_p)
+os.unlink(silent_p)
+os.unlink(f_empty.name)
 
 print("\nALL CHECKS PASSED")

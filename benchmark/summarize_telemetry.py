@@ -26,6 +26,12 @@ Exit 0 when at least one valid row was summarized; exit 2 when nothing
 could be parsed or the CLI usage is wrong. `--json` prints the combined
 summary as sorted-key JSON for tooling.
 
+`--vs BASE...` diffs the positional (target) files against a baseline set of
+session CSVs: numeric deltas per metric, per-reason rejection deltas sorted
+by |delta| (the money column when a gate was retuned), and a CHANGED flag
+when the dominant rejection reason moves. `--json --vs` embeds the diff as
+the "diff" object.
+
 The column layout mirrors SessionTelemetry.header()/logFrame() in
 app/src/main/java/com/bobbywasabi/overlayapp/SessionTelemetry.kt:
 tMs,analysisMs,candidates,rej_grayscale,rej_tiny,rej_edge,rej_aspect,
@@ -248,12 +254,108 @@ def print_text(summary, label, bad_rows):
     print()
 
 
+def _delta(base, target):
+    if base is None or target is None:
+        return None
+    return target - base
+
+
+def diff_summaries(base, target):
+    """Compare two combined summary dicts (as returned by summarize()).
+
+    Every numeric metric maps to {"base": b, "target": t, "delta": t - b}
+    (delta is None when a side is None, e.g. no detections); the rejection
+    breakdown maps each reason in the union of both sides to its per-reason
+    triple. Intended for before/after comparisons of field logs, e.g. a
+    baseline build vs one with retuned gates.
+    """
+    diff = {}
+    for key in ("frames", "span_s", "fps", "detection_rate", "tracked_rate",
+                "rejections_total"):
+        diff[key] = {"base": base[key], "target": target[key],
+                     "delta": target[key] - base[key]}
+    for group, metrics in (("analysis_ms", ("mean", "p95", "max",
+                                            "spikes_over_50ms")),
+                           ("candidates", ("mean", "max"))):
+        diff[group] = {}
+        for metric in metrics:
+            b, t = base[group][metric], target[group][metric]
+            diff[group][metric] = {"base": b, "target": t, "delta": t - b}
+    b_dom, t_dom = base["dominant_rejection"], target["dominant_rejection"]
+    diff["dominant_rejection"] = {"base": b_dom, "target": t_dom,
+                                 "changed": b_dom != t_dom}
+    diff["rejections"] = {}
+    for reason in set(base["rejections"]) | set(target["rejections"]):
+        b = base["rejections"].get(reason, 0)
+        t = target["rejections"].get(reason, 0)
+        diff["rejections"][reason] = {"base": b, "target": t, "delta": t - b}
+    diff["radius"] = {}
+    for metric in ("detected_frames", "mean", "slope_per_s"):
+        b, t = base["radius"][metric], target["radius"][metric]
+        diff["radius"][metric] = {"base": b, "target": t,
+                                 "delta": _delta(b, t)}
+    return diff
+
+
+def _fmt(v, digits):
+    if v is None:
+        return "n/a"
+    return f"{v:.{digits}f}" if digits else str(int(v))
+
+
+def _fmt_delta(v, digits, suffix=""):
+    if v is None:
+        return "n/a"
+    if v == 0:
+        return "no change"
+    sign = "+" if v > 0 else ""
+    return f"{sign}{_fmt(v, digits)}{suffix}"
+
+
+def print_diff(diff, base_label, target_label):
+    """Print a before/after diff block (delta = target - baseline)."""
+    def num(e, digits=2, suffix=""):
+        return (f"{_fmt(e['base'], digits)} -> {_fmt(e['target'], digits)} "
+                f"({_fmt_delta(e['delta'], digits, suffix)})")
+
+    def pct(e):
+        return (f"{e['base']:.2%} -> {e['target']:.2%} "
+                f"({_fmt_delta(e['delta'] * 100, 2, 'pp')})")
+
+    print(f"== DIFF  baseline: {base_label}  ->  target: {target_label} ==")
+    print(f"frames:           {num(diff['frames'], 0)}")
+    print(f"span:             {num(diff['span_s'], 1)}s")
+    print(f"fps:              {num(diff['fps'], 1)}")
+    a = diff["analysis_ms"]
+    print(f"analysisMs mean:  {num(a['mean'])}ms  p95: {num(a['p95'])}ms  "
+          f"max: {num(a['max'])}ms  spikes>50ms: {num(a['spikes_over_50ms'], 0)}")
+    c = diff["candidates"]
+    print(f"candidates mean:  {num(c['mean'], 1)}  max: {num(c['max'], 0)}")
+    print(f"detection rate:   {pct(diff['detection_rate'])}")
+    print(f"tracked rate:     {pct(diff['tracked_rate'])}")
+    r = diff["radius"]
+    print(f"radius mean:      {num(r['mean'], 4)}  "
+          f"detected frames: {num(r['detected_frames'], 0)}  "
+          f"shrink/s: {num(r['slope_per_s'], 5)}")
+    print(f"rejections total: {num(diff['rejections_total'], 0)}")
+    d = diff["dominant_rejection"]
+    chg = " (CHANGED)" if d["changed"] else ""
+    print(f"dominant rej:     {d['base']} -> {d['target']}{chg}")
+    for reason, e in sorted(diff["rejections"].items(),
+                            key=lambda kv: -abs(kv[1]["delta"]))[:8]:
+        print(f"  rej_{reason}: {num(e, 0)}")
+    print()
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(
         description="Summarize Throw Assistant session-telemetry CSVs.")
     parser.add_argument("csv", nargs="+", help="session CSV file(s)")
     parser.add_argument("--json", action="store_true",
                         help="print combined summary as JSON instead of text")
+    parser.add_argument("--vs", nargs="+", default=None, metavar="BASE_CSV",
+                        help="baseline session CSV file(s) to diff the "
+                             "positional (target) files against")
     args = parser.parse_args(argv)
 
     results = [parse_file(p) for p in args.csv]
@@ -265,15 +367,33 @@ def main(argv=None):
         return 2
 
     combined = summarize(all_rows)
+    baseline = None
+    if args.vs:
+        baseline_rows = []
+        for p in args.vs:
+            baseline_rows.extend(parse_file(p).rows)
+        if not baseline_rows:
+            print("error: no valid rows parsed from --vs baseline inputs",
+                  file=sys.stderr)
+            return 2
+        baseline = summarize(baseline_rows)
+    diff = diff_summaries(baseline, combined) if baseline else None
+
     if args.json:
         combined["files"] = len(results)
         combined["bad_rows"] = sum(r.bad_rows for r in results if r.bad_rows > 0)
+        if diff is not None:
+            combined["baseline_files"] = len(args.vs)
+            combined["diff"] = diff
         print(json.dumps(combined, indent=2, sort_keys=True))
     else:
         for r in results:
             print_text(summarize(r.rows), r.path, r.bad_rows)
         if len(results) > 1:
             print_text(combined, f"COMBINED ({len(results)} files)", 0)
+        if diff is not None:
+            print_diff(diff, f"BASELINE ({len(args.vs)} file(s))",
+                       f"TARGET ({len(results)} file(s))")
     return 0
 
 
