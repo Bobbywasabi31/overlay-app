@@ -73,3 +73,24 @@ jobs:
             app/build/reports/tests/
             app/build/reports/lint-results-debug.*
             app/build/reports/jacoco/
+
+  detection-corpus:
+    # Tasks 19/20/42: the labeled detection benchmark is the ground-truth
+    # check for the ring-detection logic (Python port of ScreenAnalyzer).
+    # Gating, not informational: the scorer exits non-zero on any miss and
+    # the synthetic cases use a seeded RNG, so unlike the wall-clock Kotlin
+    # timing benchmark this is pure logic and cannot flake on a noisy runner.
+    name: Detection corpus (Python)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Install Pillow (only third-party dep of the scorer)
+        run: pip install pillow
+      - name: Score the labeled detection corpus
+        run: python3 benchmark/run_benchmark.py
+      - name: Telemetry summarizer self-checks
+        run: python3 benchmark/test_summarize_telemetry.py

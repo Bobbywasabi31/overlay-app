@@ -98,10 +98,11 @@ Known notes:
 - Synthetic `neg-*` cases must stay rejected — a "fix" that turns a negative
   into a detection is a regression, not an improvement.
 - The harness exits non-zero while any case misses: the corpus is a tuning
-  gate, and right now it honestly fails on the real-world case. Task 20's
-  job is to flip `real-red-ring-grass` without breaking anything else.
-- The analyzer has no JVM here; this port is the local gate. CI's
-  `ScreenAnalyzerTest` remains the authoritative Kotlin check.
+  gate. Baseline is 22/22 (task 20's arc-fallback pass flipped
+  `real-red-ring-grass` without breaking anything else); a new miss fails
+  CI via the `detection-corpus` workflow job.
+- The analyzer has no JVM here; this port is the local gate. CI runs both
+  this corpus and the authoritative Kotlin `ScreenAnalyzerTest`.
 
 ## Extending the corpus
 
