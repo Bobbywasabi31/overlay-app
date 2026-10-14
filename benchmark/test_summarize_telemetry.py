@@ -15,6 +15,7 @@ import tempfile
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from summarize_telemetry import (  # noqa: E402
     parse_file, summarize, main, REASON_COLUMNS, diff_summaries,
+    history_row, print_history,
 )
 
 HEADER = ("tMs,analysisMs,candidates,"
@@ -207,5 +208,71 @@ os.unlink(base_p)
 os.unlink(tgt_p)
 os.unlink(silent_p)
 os.unlink(f_empty.name)
+
+# --history: one trend row per session file
+
+# two sessions: A with detections + fill dominance, B silent with tiny dominance
+rows_a = [frame(i * 16.7, radius=0.09 - 0.0001 * i, tracked=0.08,
+                analysis=8.0, fill=5) for i in range(100)]
+rows_b = [frame(i * 16.7, radius=-1.0, tracked=-1.0,
+                analysis=12.0, tiny=4) for i in range(100)]
+pa = write_csv(rows_a)
+pb = write_csv(rows_b)
+
+ha = history_row(summarize(parse_file(pa).rows), pa)
+check("history row fields",
+      ha["frames"] == 100 and ha["detection_rate"] == 1.0
+      and ha["tracked_rate"] == 1.0
+      and ha["dominant_rejection"] == "fill"
+      and ha["analysis_ms_p95"] == 8.0
+      and ha["shrink_per_s"] is not None
+      and ha["anomalies"] == 1, ha)  # fill owns 100% of rejections: dominance anomaly
+hb = history_row(summarize(parse_file(pb).rows), pb)
+check("history row silent session",
+      hb["detection_rate"] == 0.0 and hb["tracked_rate"] == 0.0
+      and hb["dominant_rejection"] == "tiny"
+      and hb["shrink_per_s"] is None, hb)
+
+proc_h = subprocess.run([sys.executable, script, pa, pb, "--history"],
+                        capture_output=True, text=True)
+check("history exit 0", proc_h.returncode == 0, proc_h.stderr)
+check("history table header", "HISTORY" in proc_h.stdout, proc_h.stdout[:200])
+for tmp_p in (pa, pb):
+    check("history row for " + os.path.basename(tmp_p),
+          os.path.basename(tmp_p) in proc_h.stdout, proc_h.stdout[:400])
+check("history shows 100.0% and 0.0% detect rates",
+      "100.0%" in proc_h.stdout and "0.0%" in proc_h.stdout,
+      proc_h.stdout[:600])
+
+proc_hj = subprocess.run([sys.executable, script, pa, pb,
+                          "--history", "--json"],
+                         capture_output=True, text=True)
+jh = json.loads(proc_hj.stdout)
+check("history json payload",
+      len(jh["history"]) == 2
+      and jh["history"][0]["file"] <= jh["history"][1]["file"]
+      and jh["history"][0]["frames"] == 100
+      and "dominant_rejection" in jh["history"][0]
+      and "analysis_ms_p95" in jh["history"][0], jh)
+
+# --history conflicts with --vs
+proc_hc = subprocess.run([sys.executable, script, pa, "--history",
+                          "--vs", pb], capture_output=True, text=True)
+check("history+vs conflict exit 2",
+      proc_hc.returncode == 2 and "mutually exclusive" in proc_hc.stderr,
+      proc_hc.stderr)
+
+# a file with zero valid rows is skipped in the history list, not fatal
+f_empty2 = tempfile.NamedTemporaryFile("w", suffix=".csv", delete=False)
+f_empty2.close()
+proc_hm = subprocess.run([sys.executable, script, pa, f_empty2.name,
+                          "--history", "--json"],
+                         capture_output=True, text=True)
+jm = json.loads(proc_hm.stdout)
+check("history skips empty file",
+      proc_hm.returncode == 0 and len(jm["history"]) == 1, jm)
+os.unlink(pa)
+os.unlink(pb)
+os.unlink(f_empty2.name)
 
 print("\nALL CHECKS PASSED")

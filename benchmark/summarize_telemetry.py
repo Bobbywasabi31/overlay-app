@@ -32,6 +32,11 @@ by |delta| (the money column when a gate was retuned), and a CHANGED flag
 when the dominant rejection reason moves. `--json --vs` embeds the diff as
 the "diff" object.
 
+`--history` prints one trend row per input file (frames, detection/tracked
+rate, dominant rejection, analysisMs p95, radius shrink rate, anomaly count)
+instead of the full per-file summaries — the day-to-day view when field-test
+logs come back across sessions. Conflicts with --vs (exit 2).
+
 The column layout mirrors SessionTelemetry.header()/logFrame() in
 app/src/main/java/com/bobbywasabi/overlayapp/SessionTelemetry.kt:
 tMs,analysisMs,candidates,rej_grayscale,rej_tiny,rej_edge,rej_aspect,
@@ -46,6 +51,7 @@ import argparse
 import csv
 import json
 import math
+import os
 import sys
 from dataclasses import dataclass, field
 
@@ -347,6 +353,40 @@ def print_diff(diff, base_label, target_label):
     print()
 
 
+def print_history(rows):
+    """One trend row per session file: the day-to-day view for field logs.
+
+    rows: list of history_row dicts (sorted by file). Text-only; --json
+    callers get the raw list instead."""
+    print("== HISTORY (one row per session, sorted by file) ==")
+    head = (f"{'file':<32}{'frames':>8}{'detect':>8}{'tracked':>8}  "
+            f"{'dominant_rej':<12}{'ams_p95':>8}  {'shrink/s':>10}  anom")
+    print(head)
+    for r in rows:
+        shrink = (f"{r['shrink_per_s']:.5f}"
+                  if r["shrink_per_s"] is not None else "-")
+        print(f"{r['file']:<32}{r['frames']:>8}"
+              f"{r['detection_rate']:>7.1%}{r['tracked_rate']:>7.1%}  "
+              f"{str(r['dominant_rejection']):<12}{r['analysis_ms_p95']:>8.1f}  "
+              f"{shrink:>10}  {r['anomalies']}")
+    print()
+
+
+def history_row(summary, path):
+    """Compress a per-file summary to the trend-relevant columns."""
+    r = summary["radius"]
+    return {
+        "file": os.path.basename(path),
+        "frames": summary["frames"],
+        "detection_rate": summary["detection_rate"],
+        "tracked_rate": summary["tracked_rate"],
+        "dominant_rejection": summary["dominant_rejection"],
+        "analysis_ms_p95": summary["analysis_ms"]["p95"],
+        "shrink_per_s": r.get("slope_per_s"),
+        "anomalies": len(summary["anomalies"]),
+    }
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(
         description="Summarize Throw Assistant session-telemetry CSVs.")
@@ -356,7 +396,16 @@ def main(argv=None):
     parser.add_argument("--vs", nargs="+", default=None, metavar="BASE_CSV",
                         help="baseline session CSV file(s) to diff the "
                              "positional (target) files against")
+    parser.add_argument("--history", action="store_true",
+                        help="print one trend row per input file "
+                             "(detection/tracked rate, dominant rejection, "
+                             "analysisMs p95, radius shrink rate) instead of "
+                             "the full per-file summary; conflicts with --vs")
     args = parser.parse_args(argv)
+
+    if args.history and args.vs:
+        print("error: --history and --vs are mutually exclusive", file=sys.stderr)
+        return 2
 
     results = [parse_file(p) for p in args.csv]
     all_rows = []
@@ -365,6 +414,16 @@ def main(argv=None):
     if not all_rows:
         print("error: no valid rows parsed from any input", file=sys.stderr)
         return 2
+
+    if args.history:
+        hist = [history_row(summarize(r.rows), r.path)
+                for r in results if r.rows]
+        hist.sort(key=lambda h: h["file"])
+        if args.json:
+            print(json.dumps({"history": hist}, indent=2, sort_keys=True))
+        else:
+            print_history(hist)
+        return 0
 
     combined = summarize(all_rows)
     baseline = None

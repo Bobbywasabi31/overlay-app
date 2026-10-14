@@ -65,7 +65,22 @@ python3 summarize_telemetry.py new-session.csv --vs old-session.csv
 Prints numeric deltas per metric (target − baseline), per-reason rejection
 deltas sorted by |delta|, and a CHANGED flag when the dominant rejection
 reason moves. `--json --vs` embeds the same diff as the `"diff"` object.
-Exit 2 when the baseline parses to zero rows.**21/22 pass** — 16/17 positives detected, 5/5 negatives correctly rejected.
+Exit 2 when the baseline parses to zero rows.
+
+## Trend view across sessions
+
+When field-test logs come back across days, `--history` prints one trend row
+per session file instead of the full per-file summaries — detection/tracked
+rate, dominant rejection reason, analysisMs p95, radius shrink rate, and
+anomaly count — sorted by filename (timestamped filenames sort chronologically):
+
+```sh
+python3 summarize_telemetry.py --history session-*.csv
+python3 summarize_telemetry.py --history --json session-*.csv   # "history" list for tooling
+```
+
+Files with zero valid rows are skipped; `--history` conflicts with `--vs`
+(exit 2).**21/22 pass** — 16/17 positives detected, 5/5 negatives correctly rejected.
 Full per-case table from `python3 run_benchmark.py`; the one miss:
 
 - `real-red-ring-grass` — the genuine real-world hard case (a different public
