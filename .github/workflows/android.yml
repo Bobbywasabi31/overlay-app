@@ -94,3 +94,5 @@ jobs:
         run: python3 benchmark/run_benchmark.py
       - name: Telemetry summarizer self-checks
         run: python3 benchmark/test_summarize_telemetry.py
+      - name: Benchmark --json self-checks
+        run: python3 benchmark/test_run_benchmark.py

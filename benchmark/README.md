@@ -26,6 +26,7 @@ scored against numbers, not vibes.
 
 ```sh
 python3 run_benchmark.py
+python3 run_benchmark.py --json   # pure sorted-key JSON on stdout, for tooling
 ```
 
 ## Baseline (2026-10-08, ScreenAnalyzer v0.4.13-era logic)

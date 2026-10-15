@@ -57,9 +57,38 @@ def score_case(case, tol):
             "ms": round(ms, 1), "stats": stats}
 
 
+def build_report(results):
+    """Machine-readable report of a scored corpus run.
+
+    Returns {"results": [...per-case dicts...], "summary": {...}} with
+    JSON-safe, sorted-key-safe types — exactly what --json prints.
+    """
+    pos = [r for r in results if r["expect"] == "detect"]
+    neg = [r for r in results if r["expect"] != "detect"]
+    agg_rej = {}
+    for r in results:
+        if r["expect"] == "detect" and not r["ok"]:
+            for k, v in r["stats"]["rejected"].items():
+                agg_rej[k] = agg_rej.get(k, 0) + v
+    return {
+        "results": results,
+        "summary": {
+            "total": len(results),
+            "passed": sum(r["ok"] for r in results),
+            "positives_detected": sum(r["ok"] for r in pos),
+            "positives_total": len(pos),
+            "negatives_correct": sum(r["ok"] for r in neg),
+            "negatives_total": len(neg),
+            "missed_positive_rejection_causes": agg_rej,
+        },
+    }
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--save", default=None, help="directory to dump annotated results")
+    ap.add_argument("--json", action="store_true",
+                    help="print the report as sorted-key JSON instead of the human table")
     args = ap.parse_args()
     corpus = json.load(open(os.path.join(HERE, "corpus.json")))
     results = []
@@ -68,30 +97,24 @@ def main():
         results.append(score_case(case, tol))
 
     fails = [r for r in results if not r["ok"]]
-    print(f"{'CASE':34} {'EXPECT':7} {'OK?':4} {'MS':>7}  DETAIL / REJECTIONS")
-    for r in results:
-        rej = r["stats"]["rejected"]
-        rej_s = ",".join(f"{k}:{v}" for k, v in sorted(rej.items())) if rej else "-"
-        print(f"{r['id']:34} {r['expect']:7} {'PASS' if r['ok'] else 'FAIL':4} "
-              f"{r['ms']:7.1f}  {r['detail']}  [{rej_s}]")
+    if args.json:
+        # Pure JSON on stdout, mirroring summarize_telemetry.py's --json convention.
+        print(json.dumps(build_report(results), indent=2, sort_keys=True))
+    else:
+        print(f"{'CASE':34} {'EXPECT':7} {'OK?':4} {'MS':>7}  DETAIL / REJECTIONS")
+        for r in results:
+            rej = r["stats"]["rejected"]
+            rej_s = ",".join(f"{k}:{v}" for k, v in sorted(rej.items())) if rej else "-"
+            print(f"{r['id']:34} {r['expect']:7} {'PASS' if r['ok'] else 'FAIL':4} "
+                  f"{r['ms']:7.1f}  {r['detail']}  [{rej_s}]")
 
-    n = len(results)
-    by_kind = {}
-    for r in results:
-        k = "pos" if r["expect"] == "detect" else "neg"
-        by_kind.setdefault(k, [0, 0])
-        by_kind[k][1] += 1
-        by_kind[k][0] += r["ok"]
-    print(f"\nTOTAL {n - len(fails)}/{n} pass | "
-          f"positives {by_kind.get('pos', [0, 0])[0]}/{by_kind.get('pos', [0, 0])[1]} detected | "
-          f"negatives {by_kind.get('neg', [0, 0])[0]}/{by_kind.get('neg', [0, 0])[1]} correctly rejected")
-    agg_rej = {}
-    for r in results:
-        if r["expect"] == "detect" and not r["ok"]:
-            for k, v in r["stats"]["rejected"].items():
-                agg_rej[k] = agg_rej.get(k, 0) + v
-    if agg_rej:
-        print("Rejection causes on missed positives:", agg_rej)
+        report = build_report(results)
+        s = report["summary"]
+        print(f"\nTOTAL {s['passed']}/{s['total']} pass | "
+              f"positives {s['positives_detected']}/{s['positives_total']} detected | "
+              f"negatives {s['negatives_correct']}/{s['negatives_total']} correctly rejected")
+        if s["missed_positive_rejection_causes"]:
+            print("Rejection causes on missed positives:", s["missed_positive_rejection_causes"])
 
     if args.save:
         os.makedirs(args.save, exist_ok=True)
