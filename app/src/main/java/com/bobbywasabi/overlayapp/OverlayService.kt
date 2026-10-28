@@ -136,7 +136,10 @@ class OverlayService : Service() {
             if (!CaptureTiming.isFresh(lastResultTime, SystemClock.elapsedRealtime())) {
                 guidance?.showRing(null)
                 ThrowState.controller.resetTracking()
-                if (GestureThrowService.current?.holding == true) ThrowState.disarm()
+                // While a ball is held, a capture stall must not drop it: the
+                // hold has its own timeout, and throwBall re-verifies session,
+                // target, and freshness before any swipe is dispatched.
+                if (GestureThrowService.current?.holding != true) ThrowState.disarm()
             }
             if (ThrowState.controller.armed && GestureThrowService.current?.targetWindow()?.target != ThrowState.target) ThrowState.disarm()
             if (calibration != null && GestureThrowService.current?.targetIsForeground != true) removeCalibration()
@@ -267,7 +270,12 @@ class OverlayService : Service() {
         if (ThrowState.killed) return
         val controller = ThrowState.controller
         if (!controller.armed || calibration != null) return
-        if (!CaptureTiming.isFreshForThrow(frameTime, SystemClock.elapsedRealtime())) {
+        // Frame age includes the analysis itself, which can exceed the old
+        // 200 ms throw budget on hard frames (arc fallback) and used to veto
+        // every hold and throw while wiping the tracking history. Only a
+        // genuinely stale frame (pipeline dead) is rejected here; the
+        // prediction lead below compensates for the age of admitted frames.
+        if (!CaptureTiming.isFresh(frameTime, SystemClock.elapsedRealtime())) {
             controller.resetTracking()
             return
         }
@@ -291,8 +299,12 @@ class OverlayService : Service() {
             return
         }
         // The ring keeps shrinking while the swipe runs; the controller predicts
-        // the radius at gesture release from the swipe duration.
-        controller.throwLeadMs = ThrowState.durationMs
+        // the radius at gesture release from the swipe duration. The frame's
+        // own age (analysis + delivery latency) counts too: the ring has been
+        // shrinking since the frame was captured, not since it was delivered.
+        val frameAgeMs = (SystemClock.elapsedRealtime() - frameTime)
+            .coerceIn(0L, CaptureTiming.STALE_AFTER_MS)
+        controller.throwLeadMs = ThrowState.durationMs + frameAgeMs
         val ready = controller.consider(ring, frameTime)
         if (ThrowState.dryRun) {
             dryRunStep(ball, ring, ready, frameTime, size)
@@ -319,8 +331,10 @@ class OverlayService : Service() {
         )
         lastActivityTime = SystemClock.elapsedRealtime()
         controller.beginThrow(frameTime)
-        // #9: the ring must still be fresh at dispatch time, not just at plan time.
-        if (!CaptureTiming.isFreshForThrow(frameTime, SystemClock.elapsedRealtime())) {
+        // #9: the pipeline must still be alive at dispatch time, not just at
+        // plan time. Bounded by the stale limit, not the old 200 ms budget:
+        // the frame's age is already compensated in the prediction lead.
+        if (!CaptureTiming.isFresh(frameTime, SystemClock.elapsedRealtime())) {
             Log.w(TAG, "Throw aborted: ring went stale before dispatch")
             controller.finishThrow(false)
             ThrowState.changed()

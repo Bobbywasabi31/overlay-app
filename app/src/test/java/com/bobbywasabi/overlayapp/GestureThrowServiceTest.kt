@@ -118,11 +118,25 @@ class GestureThrowServiceTest {
         completePress()
         val controller = ThrowState.controller
         controller.beginThrow(SystemClock.elapsedRealtime())
-        assertFalse(service.throwBall(swipe(), SystemClock.elapsedRealtime() - 201) {})
+        assertFalse(service.throwBall(swipe(), SystemClock.elapsedRealtime() - CaptureTiming.STALE_AFTER_MS - 1) {})
         ThrowState.calibrate(ball, ThrowTarget.GAME)
         assertFalse(service.throwBall(swipe(), SystemClock.elapsedRealtime()) {})
         assertContinuation(1)
         assertEquals(1L, stroke(1).duration)
+    }
+    @Test fun holdStartsFromAModeratelyOldFrame() {
+        // Frame age includes analysis time; a 500 ms old frame must still be
+        // able to start a hold (the old 200 ms budget rejected it outright).
+        assertTrue(service.holdBall(ball, 1080, 2400, SystemClock.elapsedRealtime() - 500))
+        assertTrue(service.holding)
+    }
+    @Test fun moderatelyOldDecisionCanStillContinueIntoAThrow() {
+        hold()
+        completePress()
+        val controller = ThrowState.controller
+        controller.beginThrow(SystemClock.elapsedRealtime())
+        assertTrue(service.throwBall(swipe(), SystemClock.elapsedRealtime() - 500) { controller.finishThrow(it) })
+        assertContinuation(1)
     }
     @Test fun dispatchRejectionDoesNotLeaveTheServiceBusy() {
         shadowOf(service).setCanDispatchGestures(false)

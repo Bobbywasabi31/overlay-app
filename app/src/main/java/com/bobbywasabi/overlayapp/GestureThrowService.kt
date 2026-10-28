@@ -38,7 +38,7 @@ class GestureThrowService : AccessibilityService() {
         if (!ball.releasing) {
             val currentSession = holdMatchesSession(ball) && ball.controller.armed
             if (currentSession) ThrowState.disarm()
-            // The original 750 ms press has ended even if its callback was lost.
+            // The hold press has ended even if its callback was lost.
             if (Build.VERSION.SDK_INT >= 26) releaseHold(ball)
             if (currentSession) Toast.makeText(this, R.string.auto_hold_timeout, Toast.LENGTH_LONG).show()
         }
@@ -79,7 +79,9 @@ class GestureThrowService : AccessibilityService() {
     fun holdBall(ball: ThrowPlanner.Ball, width: Int, height: Int, frameTime: Long): Boolean {
         if (Build.VERSION.SDK_INT < 26 || busy || width >= height || !ThrowPlanner.validBall(ball) ||
             !ThrowState.controller.canBeginHold(frameTime) || ThrowState.ball != ball ||
-            !CaptureTiming.isFreshForThrow(frameTime, SystemClock.elapsedRealtime())) return false
+            // The ball position is calibration-static, so starting a hold only
+            // needs a live pipeline (stale bound), not a sub-200 ms frame.
+            !CaptureTiming.isFresh(frameTime, SystemClock.elapsedRealtime())) return false
         val target = ThrowState.target ?: return false
         if (!targetMatches(target, width, height)) return false
         val stroke = GestureDescription.StrokeDescription(point(ball.x * width, ball.y * height), 0, HOLD_MS, true)
@@ -118,7 +120,9 @@ class GestureThrowService : AccessibilityService() {
         val capture = held ?: return false
         if (!canContinueHold || !holdMatchesSession(capture) || !capture.controller.busy ||
             !targetMatches(capture.target, capture.width, capture.height) ||
-            !CaptureTiming.isFreshForThrow(frameTime, SystemClock.elapsedRealtime()) ||
+            // Stale bound, not the old 200 ms budget: frame age includes the
+            // analysis latency and is compensated in the prediction lead.
+            !CaptureTiming.isFresh(frameTime, SystemClock.elapsedRealtime()) ||
             abs(swipe.startX - capture.ball.x * capture.width) > 1f ||
             abs(swipe.startY - capture.ball.y * capture.height) > 1f) return false
         val path = Path().apply {

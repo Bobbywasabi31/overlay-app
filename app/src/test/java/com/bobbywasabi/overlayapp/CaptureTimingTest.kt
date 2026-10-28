@@ -9,10 +9,11 @@ class CaptureTimingTest {
         assertFalse(CaptureTiming.isFresh(1000, 1901))
         assertFalse(CaptureTiming.isFresh(1000, 999))
     }
-    @Test fun throwRequiresMoreRecentFrameThanVisualGuidance() {
-        assertTrue(CaptureTiming.isFreshForThrow(1000, 1200))
-        assertFalse(CaptureTiming.isFreshForThrow(1000, 1201))
+    @Test fun holdAndThrowDecisionsShareTheStaleBound() {
+        // A frame older than the removed 200 ms throw budget is still usable
+        // for hold/throw decisions; only a genuinely stale frame is rejected.
         assertTrue(CaptureTiming.isFresh(1000, 1201))
-        assertFalse(CaptureTiming.isFreshForThrow(1000, 999))
+        assertTrue(CaptureTiming.isFresh(1000, 1500))
+        assertFalse(CaptureTiming.isFresh(1000, 1901))
     }
 }

@@ -10,8 +10,8 @@ android {
         applicationId = "com.bobbywasabi.overlayapp"
         minSdk = 24
         targetSdk = 35
-        versionCode = 21
-        versionName = "0.4.14-alpha.1"
+        versionCode = 22
+        versionName = "0.4.15-alpha.1"
     }
     buildFeatures { viewBinding = true }
     testOptions { unitTests.isIncludeAndroidResources = true }
